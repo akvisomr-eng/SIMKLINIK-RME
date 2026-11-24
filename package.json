@@ -1,0 +1,13 @@
+﻿{
+  "name": "simklinik-rme-enterprise",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ekosistem Mandiri Klinik Terapi Wicara, RME, SIMKLINIK & Healthcare Enterprise HQ (UU Kesehatan 17/2023, Permenkes 24/2022, SATUSEHAT, UU PDP)",
+  "scripts": {
+    "dev:web": "npm --prefix apps/terapi-wicara-web run dev",
+    "build:web": "npm --prefix apps/terapi-wicara-web run build",
+    "typecheck:web": "npm --prefix apps/terapi-wicara-web run typecheck",
+    "dev:android": "npm --prefix apps/terapi-wicara-android run start",
+    "web:android": "npm --prefix apps/terapi-wicara-android run web"
+  }
+}
