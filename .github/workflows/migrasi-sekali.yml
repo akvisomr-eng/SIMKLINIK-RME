@@ -1,0 +1,157 @@
+name: Migrasi kanal kode ke repositori
+
+# Salin berkas ini ke: .github/workflows/migrasi-sekali.yml
+# Jalankan: tab Actions -> Migrasi kanal kode ke repositori -> Run workflow
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrasi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      API: https://fawmudsaaotlqyryciwd.supabase.co
+      KEY: sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 1. Tulis berkas dari kanal
+        run: |
+          set -euo pipefail
+          curl -fsSL "$API/rest/v1/simklinik_code_files?select=path,content" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o /tmp/all.json
+          python3 - <<'PY'
+          import json, os
+          web = "apps/terapi-wicara-web"
+          rows = json.load(open("/tmp/all.json"))
+          assert len(rows) >= 20, "kanal terlalu sedikit: %d" % len(rows)
+          for row in rows:
+              p = row["path"]
+              dst = os.path.join(web, p) if p.startswith(("app/", "src/")) else p
+              os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+              with open(dst, "w", encoding="utf-8") as fh:
+                  fh.write(row["content"])
+              print("tulis", dst)
+          PY
+
+      - name: 2. Buang workflow lama
+        run: |
+          for f in sinkron-web sinkron-otomatis diagnosa-build; do
+            if [ -f ".github/workflows/$f.yml" ]; then
+              rm -f ".github/workflows/$f.yml"
+              echo "dibuang: $f.yml"
+            fi
+          done
+
+      - name: 3. Gabungkan tema ke globals.css
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+
+          web = "apps/terapi-wicara-web"
+          css = os.path.join(web, "app", "globals.css")
+          theme = os.path.join(web, "app", "theme-eduwell.css")
+          assert os.path.exists(css), "globals.css tidak ada"
+          assert os.path.exists(theme), "theme-eduwell.css tidak ada"
+
+          START, END = "/* === EDUWELL THEME START === */", "/* === EDUWELL THEME END === */"
+          TSTART, TEND = "/* === EDUWELL TAIL START === */", "/* === EDUWELL TAIL END === */"
+
+          def buang_blok(baris, awal, akhir):
+              hasil, lewati = [], False
+              for b in baris:
+                  if b.strip() == awal:
+                      lewati = True
+                      continue
+                  if b.strip() == akhir:
+                      lewati = False
+                      continue
+                  if not lewati:
+                      hasil.append(b)
+              return hasil
+
+          lama = open(css, encoding="utf-8").read().splitlines()
+          lama = buang_blok(lama, START, END)
+          lama = buang_blok(lama, TSTART, TEND)
+          tema = open(theme, encoding="utf-8").read().strip().splitlines()
+
+          ekor = [
+              "html, body { background-color: #FFFFFF; color: #14161A; }",
+              "body { font-family: 'Open Sans', system-ui, sans-serif; }",
+              "::selection { background: #DC8CDB; color: #fff; }",
+          ]
+
+          out = [START] + tema + [END, ""] + lama + ["", TSTART] + ekor + [TEND]
+          isi = "\n".join(out).strip() + "\n"
+          open(css, "w", encoding="utf-8").write(isi)
+
+          assert "ew-hero" in isi, "tema tidak tergabung"
+          assert isi.count(START) == 1, "penanda tema ganda"
+          print("globals.css:", len(isi), "karakter")
+          PY
+
+      - name: 4. Aktifkan output standalone
+        run: |
+          set -euo pipefail
+          cfg=apps/terapi-wicara-web/next.config.ts
+          if [ -f "$cfg" ] && ! grep -q standalone "$cfg"; then
+            perl -0pi -e "s/poweredByHeader: false,/poweredByHeader: false,\n  output: 'standalone',/" "$cfg"
+            echo "output standalone ditambahkan"
+          fi
+
+      - name: 5. Pasang dependensi
+        working-directory: apps/terapi-wicara-web
+        run: npm install --no-audit --no-fund
+
+      - name: 6. Pemeriksaan tipe
+        working-directory: apps/terapi-wicara-web
+        run: npx tsc --noEmit
+
+      - name: 7. Build produksi
+        working-directory: apps/terapi-wicara-web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://fawmudsaaotlqyryciwd.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npx next build
+
+      - name: 8. Buktikan halaman baru dirender
+        working-directory: apps/terapi-wicara-web
+        run: |
+          set -euo pipefail
+          find .next/server/app -name "*.html" | sort
+          hero=""
+          for f in $(find .next/server/app -name "*.html"); do
+            if grep -q "ew-hero" "$f"; then hero="$f"; break; fi
+          done
+          echo "halaman bertema EduWell: ${hero:-TIDAK ADA}"
+          if [ -z "$hero" ]; then
+            echo "::error::Tema EduWell tidak ditemukan pada HTML hasil build"
+            exit 1
+          fi
+          if grep -q "SIMKLINIK Cabang" "$hero"; then
+            echo "::error::Tombol SIMKLINIK Cabang masih ada di situs publik"
+            exit 1
+          fi
+          echo "lulus: tema terpasang dan tombol dasbor sudah hilang"
+
+      - name: 9. Commit dan dorong
+        run: |
+          set -euo pipefail
+          git config user.name arena-agent
+          git config user.email arena-agent@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo "tidak ada perubahan untuk di-commit"
+          else
+            git commit -m "feat(web): situs publik EduWell dengan ilustrasi, pisahkan dasbor ke halaman masuk"
+            git push
+            echo "commit didorong, Vercel akan membangun ulang"
+          fi
