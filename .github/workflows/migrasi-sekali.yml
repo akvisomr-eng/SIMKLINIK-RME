@@ -2,6 +2,11 @@ name: Migrasi kanal kode ke repositori
 
 # Salin berkas ini ke: .github/workflows/migrasi-sekali.yml
 # Jalankan: tab Actions -> Migrasi kanal kode ke repositori -> Run workflow
+#
+# PERBAIKAN (run #1 dan #2 gagal 1 detik di langkah tsc):
+# next-env.d.ts mengimpor "./.next/dev/types/routes.d.ts", yang baru dibuat
+# oleh Next. Kalau tsc dijalankan lebih dulu, impor itu belum ada dan tsc
+# langsung mati. Karena itu BUILD DIJALANKAN LEBIH DULU.
 
 on:
   workflow_dispatch:
@@ -18,9 +23,12 @@ jobs:
       KEY: sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/terapi-wicara-web/package-lock.json
 
       - name: 1. Tulis berkas dari kanal
         run: |
@@ -105,16 +113,13 @@ jobs:
             perl -0pi -e "s/poweredByHeader: false,/poweredByHeader: false,\n  output: 'standalone',/" "$cfg"
             echo "output standalone ditambahkan"
           fi
+          cat "$cfg"
 
       - name: 5. Pasang dependensi
         working-directory: apps/terapi-wicara-web
         run: npm install --no-audit --no-fund
 
-      - name: 6. Pemeriksaan tipe
-        working-directory: apps/terapi-wicara-web
-        run: npx tsc --noEmit
-
-      - name: 7. Build produksi
+      - name: 6. Build produksi (sekaligus membuat tipe Next)
         working-directory: apps/terapi-wicara-web
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://fawmudsaaotlqyryciwd.supabase.co
@@ -122,10 +127,15 @@ jobs:
           NEXT_TELEMETRY_DISABLED: "1"
         run: npx next build
 
+      - name: 7. Pemeriksaan tipe (setelah build, agar .next/types ada)
+        working-directory: apps/terapi-wicara-web
+        run: npx tsc --noEmit
+
       - name: 8. Buktikan halaman baru dirender
         working-directory: apps/terapi-wicara-web
         run: |
           set -euo pipefail
+          echo "--- rute hasil build ---"
           find .next/server/app -name "*.html" | sort
           hero=""
           for f in $(find .next/server/app -name "*.html"); do
