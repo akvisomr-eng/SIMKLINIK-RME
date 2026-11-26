@@ -1,7 +1,10 @@
-name: Migrasi kanal kode dengan umpan balik log
+name: Migrasi kanal kode dengan tiga saluran log
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/migrasi-sekali.yml'
 
 permissions:
   contents: write
@@ -38,6 +41,7 @@ jobs:
               with open(dst, "w", encoding="utf-8") as fh:
                   fh.write(row["content"])
               print("tulis", dst)
+          print("total", len(rows))
           PY
 
       - name: 2. Buang workflow lama
@@ -53,16 +57,18 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os
+          import os, pathlib
 
           web = "apps/terapi-wicara-web"
-          css = os.path.join(web, "app", "globals.css")
-          theme = os.path.join(web, "app", "theme-eduwell.css")
-          assert os.path.exists(css), "globals.css tidak ada"
-          assert os.path.exists(theme), "theme-eduwell.css tidak ada"
+          css = pathlib.Path(web) / "app" / "globals.css"
+          theme = pathlib.Path(web) / "app" / "theme-eduwell.css"
+          assert css.exists(), "globals.css tidak ada"
+          assert theme.exists(), "theme-eduwell.css tidak ada"
 
-          START, END = "/* === EDUWELL THEME START === */", "/* === EDUWELL THEME END === */"
-          TSTART, TEND = "/* === EDUWELL TAIL START === */", "/* === EDUWELL TAIL END === */"
+          START = "/* === EDUWELL THEME START === */"
+          END = "/* === EDUWELL THEME END === */"
+          TSTART = "/* === EDUWELL TAIL START === */"
+          TEND = "/* === EDUWELL TAIL END === */"
 
           def buang_blok(baris, awal, akhir):
               hasil, lewati = [], False
@@ -77,10 +83,10 @@ jobs:
                       hasil.append(b)
               return hasil
 
-          lama = open(css, encoding="utf-8").read().splitlines()
+          lama = css.read_text(encoding="utf-8").splitlines()
           lama = buang_blok(lama, START, END)
           lama = buang_blok(lama, TSTART, TEND)
-          tema = open(theme, encoding="utf-8").read().strip().splitlines()
+          tema = theme.read_text(encoding="utf-8").strip().splitlines()
 
           ekor = [
               "html, body { background-color: #FFFFFF; color: #14161A; }",
@@ -90,7 +96,7 @@ jobs:
 
           out = [START] + tema + [END, ""] + lama + ["", TSTART] + ekor + [TEND]
           isi = "\n".join(out).strip() + "\n"
-          open(css, "w", encoding="utf-8").write(isi)
+          css.write_text(isi, encoding="utf-8")
 
           assert "ew-hero" in isi, "tema tidak tergabung"
           assert isi.count(START) == 1, "penanda tema ganda"
@@ -100,34 +106,37 @@ jobs:
       - name: 4. Aktifkan output standalone
         run: |
           set -euo pipefail
-          cfg=apps/terapi-wicara-web/next.config.ts
-          if [ -f "$cfg" ] && ! grep -q standalone "$cfg"; then
-            perl -0pi -e "s/poweredByHeader: false,/poweredByHeader: false,\n  output: 'standalone',/" "$cfg"
-            echo "output standalone ditambahkan"
-          fi
-          cat "$cfg"
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("apps/terapi-wicara-web/next.config.ts")
+          s = p.read_text(encoding="utf-8")
+          if "standalone" not in s:
+              s = s.replace(
+                  "poweredByHeader: false,",
+                  "poweredByHeader: false,\n  output: 'standalone',",
+              )
+              p.write_text(s, encoding="utf-8")
+          print(s)
+          PY
 
       - name: 5. Pasang dependensi
         working-directory: apps/terapi-wicara-web
         run: npm install --no-audit --no-fund
 
-      # next/font mengunduh huruf saat build. Bila jaringan build menolak,
-      # pakai tumpukan huruf sistem supaya build tidak gagal karena tipografi saja.
       - name: 5b. Siapkan cadangan huruf bila next/font gagal
         run: |
-          set -euo pipefail
           python3 - <<'PY'
-          import re
-          p = "apps/terapi-wicara-web/app/layout.tsx"
-          s = open(p, encoding="utf-8").read()
-          s = s.replace("import { Plus_Jakarta_Sans } from 'next/font/google';\n", "")
-          s = re.sub(r"const jakarta = Plus_Jakarta_Sans\(\{.*?\}\);\n", "", s, flags=re.S)
-          s = s.replace("className={jakarta.variable}", "")
-          open("/tmp/layout-sistem.tsx", "w", encoding="utf-8").write(s)
+          import pathlib, re
+          p = pathlib.Path("apps/terapi-wicara-web/app/layout.tsx")
+          s = p.read_text(encoding="utf-8")
+          s = re.sub(r"^import \{ Plus_Jakarta_Sans \}.*?\n", "", s, flags=re.M)
+          s = re.sub(r"^const jakarta = Plus_Jakarta_Sans\([\s\S]*?^\);\n", "", s, flags=re.M)
+          s = s.replace(" className={jakarta.variable}", "")
+          pathlib.Path("/tmp/layout-sistem.tsx").write_text(s, encoding="utf-8")
           print("cadangan huruf sistem disiapkan")
           PY
 
-      - name: 6. Build produksi (sekaligus membuat tipe Next)
+      - name: 6. Build produksi
         working-directory: apps/terapi-wicara-web
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://fawmudsaaotlqyryciwd.supabase.co
@@ -137,40 +146,82 @@ jobs:
           set +e
           npx next build 2>&1 | tee /tmp/build.log
           kode=${PIPESTATUS[0]}
-          if [ $kode -ne 0 ] && grep -qiE 'font|google' /tmp/build.log; then
-            echo '::warning::build gagal saat mengunduh huruf, mencoba ulang dengan huruf sistem'
+          if [ "$kode" -ne 0 ] && grep -qiE 'font|google' /tmp/build.log; then
+            echo "::warning::build gagal saat mengunduh huruf, ulangi dengan huruf sistem"
             cp /tmp/layout-sistem.tsx apps/terapi-wicara-web/app/layout.tsx
             npx next build 2>&1 | tee /tmp/build.log
             kode=${PIPESTATUS[0]}
           fi
-          tail -c 12000 /tmp/build.log > /tmp/build-tail.log || true
+          tail -c 20000 /tmp/build.log > /tmp/build-tail.log 2>/dev/null || true
+          echo "KODE_BUILD=$kode" >> "$GITHUB_ENV"
+          echo "kode keluar build: $kode"
           exit $kode
 
-      - name: 6b. Kirim ekor log build ke kanal
-        if: failure()
+      # ---------------------------------------------------------------------
+      # TIGA SALURAN LOG
+      #
+      # 6b ringkasan run  : tanpa jaringan, tidak bisa gagal diam-diam
+      # 6c artifact       : bisa Anda unduh dan kirim ke saya
+      # 6d kanal Supabase : saya baca sendiri dari database
+      #
+      # Ketiganya if: always(). Penyebab run #3 tidak meninggalkan jejak adalah
+      # if: failure() pada langkah pengirim: ia bisa terlewat begitu saja.
+      # ---------------------------------------------------------------------
+      - name: 6b. Terbitkan ringkasan log ke halaman run
+        if: always()
         run: |
-          python3 - <<'PY'
-          import json, os, urllib.request
-          try:
-              isi = open("/tmp/build-tail.log", encoding="utf-8", errors="replace").read()[-15000:]
-          except Exception as e:
-              isi = "log build tidak terbaca: %s" % e
-          data = json.dumps({"p_run": os.environ.get("GITHUB_RUN_ID", "?"),
-                             "p_step": "next build",
-                             "p_body": isi}).encode()
-          req = urllib.request.Request(
-              "https://fawmudsaaotlqyryciwd.supabase.co/rest/v1/rpc/tw_ci_log",
-              data=data,
-              headers={"apikey": "sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc",
-                       "Authorization": "Bearer sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc",
-                       "Content-Type": "application/json"})
-          try:
-              print(urllib.request.urlopen(req, timeout=20).read().decode())
-          except Exception as e:
-              print("gagal mengirim log:", e)
-          PY
+          ekor=/tmp/build-tail.log
+          if [ ! -s "$ekor" ]; then
+            echo "log build tidak terbentuk atau kosong" > /tmp/kosong.log
+            ekor=/tmp/kosong.log
+          fi
+          {
+            echo "## Hasil build"
+            echo ""
+            echo "- Kode keluar: ${KODE_BUILD:-tidak diketahui}"
+            echo "- Waktu: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            echo '```'
+            tail -c 6000 "$ekor"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "ringkasan ditulis ke GITHUB_STEP_SUMMARY"
 
-      - name: 7. Pemeriksaan tipe (setelah build, agar .next/types ada)
+      - name: 6c. Unggah log sebagai artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: /tmp/build-tail.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: 6d. Kirim log ke kanal Supabase
+        if: always()
+        run: |
+          set +e
+          if [ -s /tmp/build-tail.log ]; then ekor=/tmp/build-tail.log; else ekor=/dev/null; fi
+          isi=$(tail -c 14000 "$ekor" 2>/dev/null)
+          for coba in 1 2 3; do
+            kode=$(curl -s -o /tmp/ci.out -w '%{http_code}' \
+              -X POST "$API/rest/v1/rpc/tw_ci_log" \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              -H "Content-Type: application/json" \
+              --data-binary "$(python3 -c '
+          import json, os, sys
+          isi = sys.stdin.read()
+          print(json.dumps({"p_run": os.environ.get("GITHUB_RUN_ID", "?"),
+                            "p_step": "next build kode=" + os.environ.get("KODE_BUILD", "?"),
+                            "p_body": isi}))
+          ' <<< "$isi")")
+            echo "percobaan $coba: HTTP $kode"
+            if [ "$kode" = "200" ] || [ "$kode" = "204" ]; then break; fi
+            sleep 3
+          done
+          cat /tmp/ci.out 2>/dev/null || true
+          exit 0
+
+      - name: 7. Pemeriksaan tipe
         working-directory: apps/terapi-wicara-web
         run: npx tsc --noEmit
 
