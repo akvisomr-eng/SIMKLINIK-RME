@@ -1,12 +1,4 @@
-name: Migrasi kanal kode ke repositori
-
-# Salin berkas ini ke: .github/workflows/migrasi-sekali.yml
-# Jalankan: tab Actions -> Migrasi kanal kode ke repositori -> Run workflow
-#
-# PERBAIKAN (run #1 dan #2 gagal 1 detik di langkah tsc):
-# next-env.d.ts mengimpor "./.next/dev/types/routes.d.ts", yang baru dibuat
-# oleh Next. Kalau tsc dijalankan lebih dulu, impor itu belum ada dan tsc
-# langsung mati. Karena itu BUILD DIJALANKAN LEBIH DULU.
+name: Migrasi kanal kode dengan umpan balik log
 
 on:
   workflow_dispatch:
@@ -119,13 +111,64 @@ jobs:
         working-directory: apps/terapi-wicara-web
         run: npm install --no-audit --no-fund
 
+      # next/font mengunduh huruf saat build. Bila jaringan build menolak,
+      # pakai tumpukan huruf sistem supaya build tidak gagal karena tipografi saja.
+      - name: 5b. Siapkan cadangan huruf bila next/font gagal
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          p = "apps/terapi-wicara-web/app/layout.tsx"
+          s = open(p, encoding="utf-8").read()
+          s = s.replace("import { Plus_Jakarta_Sans } from 'next/font/google';\n", "")
+          s = re.sub(r"const jakarta = Plus_Jakarta_Sans\(\{.*?\}\);\n", "", s, flags=re.S)
+          s = s.replace("className={jakarta.variable}", "")
+          open("/tmp/layout-sistem.tsx", "w", encoding="utf-8").write(s)
+          print("cadangan huruf sistem disiapkan")
+          PY
+
       - name: 6. Build produksi (sekaligus membuat tipe Next)
         working-directory: apps/terapi-wicara-web
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://fawmudsaaotlqyryciwd.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc
           NEXT_TELEMETRY_DISABLED: "1"
-        run: npx next build
+        run: |
+          set +e
+          npx next build 2>&1 | tee /tmp/build.log
+          kode=${PIPESTATUS[0]}
+          if [ $kode -ne 0 ] && grep -qiE 'font|google' /tmp/build.log; then
+            echo '::warning::build gagal saat mengunduh huruf, mencoba ulang dengan huruf sistem'
+            cp /tmp/layout-sistem.tsx apps/terapi-wicara-web/app/layout.tsx
+            npx next build 2>&1 | tee /tmp/build.log
+            kode=${PIPESTATUS[0]}
+          fi
+          tail -c 12000 /tmp/build.log > /tmp/build-tail.log || true
+          exit $kode
+
+      - name: 6b. Kirim ekor log build ke kanal
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          try:
+              isi = open("/tmp/build-tail.log", encoding="utf-8", errors="replace").read()[-15000:]
+          except Exception as e:
+              isi = "log build tidak terbaca: %s" % e
+          data = json.dumps({"p_run": os.environ.get("GITHUB_RUN_ID", "?"),
+                             "p_step": "next build",
+                             "p_body": isi}).encode()
+          req = urllib.request.Request(
+              "https://fawmudsaaotlqyryciwd.supabase.co/rest/v1/rpc/tw_ci_log",
+              data=data,
+              headers={"apikey": "sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc",
+                       "Authorization": "Bearer sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc",
+                       "Content-Type": "application/json"})
+          try:
+              print(urllib.request.urlopen(req, timeout=20).read().decode())
+          except Exception as e:
+              print("gagal mengirim log:", e)
+          PY
 
       - name: 7. Pemeriksaan tipe (setelah build, agar .next/types ada)
         working-directory: apps/terapi-wicara-web
@@ -135,7 +178,6 @@ jobs:
         working-directory: apps/terapi-wicara-web
         run: |
           set -euo pipefail
-          echo "--- rute hasil build ---"
           find .next/server/app -name "*.html" | sort
           hero=""
           for f in $(find .next/server/app -name "*.html"); do
