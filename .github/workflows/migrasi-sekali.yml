@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/migrasi-sekali.yml'
 
+
+
 permissions:
   contents: write
 
@@ -165,7 +167,7 @@ jobs:
       # 6d kanal Supabase : saya baca sendiri dari database
       #
       # Ketiganya if: always(). Penyebab run #3 tidak meninggalkan jejak adalah
-      # if: failure() pada langkah pengirim: ia bisa terlewat begitu saja.
+      #         if: always() pada langkah pengirim: ia bisa terlewat begitu saja.
       # ---------------------------------------------------------------------
       - name: 6b. Terbitkan ringkasan log ke halaman run
         if: always()
