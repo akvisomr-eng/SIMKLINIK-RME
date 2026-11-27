@@ -247,16 +247,22 @@ jobs:
           fi
           echo "lulus: tema terpasang dan tombol dasbor sudah hilang"
 
-      - name: 9. Commit dan dorong
+            - name: 9. Commit dan dorong
         run: |
           set -euo pipefail
           git config user.name arena-agent
           git config user.email arena-agent@users.noreply.github.com
-          git add -A
+
+          git add -A -- . ':(exclude).github'
+
           if git diff --cached --quiet; then
             echo "tidak ada perubahan untuk di-commit"
-          else
-            git commit -m "feat(web): situs publik EduWell dengan ilustrasi, pisahkan dasbor ke halaman masuk"
-            git push
-            echo "commit didorong, Vercel akan membangun ulang"
+            exit 0
+          fi
+
+          git commit -m "feat(web): situs publik EduWell dengan ilustrasi, pisahkan dasbor ke halaman masuk"
+
+          git pull --rebase --autostash origin main
+          git push
+          echo "commit didorong, Vercel akan membangun ulang"
           fi
