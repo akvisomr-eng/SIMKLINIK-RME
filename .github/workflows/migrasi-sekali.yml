@@ -247,7 +247,7 @@ jobs:
           fi
           echo "lulus: tema terpasang dan tombol dasbor sudah hilang"
 
-            - name: 9. Commit dan dorong
+      - name: 9. Commit dan dorong
         run: |
           set -euo pipefail
           git config user.name arena-agent
