@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  output: 'standalone',
   allowedDevOrigins: ['*.e2b.app', 'localhost', '127.0.0.1'],
 };
 

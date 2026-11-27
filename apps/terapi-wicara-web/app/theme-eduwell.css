@@ -1,0 +1,897 @@
+
+/* ============================================================================
+   SIMKLINIK - TEMA EDUWELL (interpretasi bahasa desain)
+
+   Diadaptasi dari TemplateMo 573 EduWell (lisensi bebas untuk komersial).
+   Seluruh kode di berkas ini ditulis ulang untuk kebutuhan SIMKLINIK.
+   Palet gradien dipakai sebagai warna identitas; tata letak EduWell
+   (header transparan di atas banner, kartu layanan berikon, bilah langkah
+   bernomor, kartu harga sesi, kisi testimoni) diterapkan ulang dengan
+   struktur yang sesuai konteks klinik.
+   ========================================================================== */
+
+:root {
+  --ew-white: #FFFFFF;
+  --ew-paper: #FBF9F7;
+  --ew-ink: #14161A;
+  --ew-ink-soft: #4A4A4A;
+  --ew-ink-mute: #7A7A7A;
+  --ew-line: #ECECEC;
+  --ew-line-soft: #F5F3F1;
+
+  /* Gradien identitas EduWell, dipakai apa adanya sebagai aksen produk */
+  --ew-blush: #DC8CDB;
+  --ew-peach: #F6BF9F;
+  --ew-boost: #FF8A8A;
+  --ew-grad: linear-gradient(-145deg, #DC8CDB 0%, #F6BF9F 100%);
+  --ew-grad-soft: linear-gradient(-145deg, rgba(220,140,219,.13) 0%, rgba(246,191,159,.20) 100%);
+  --ew-grad-deep: linear-gradient(-145deg, #B25FB4 0%, #E08B62 100%);
+
+  --ew-radius: 5px;
+  --ew-radius-lg: 12px;
+  --ew-shadow-sm: 0 4px 18px rgba(20,22,26,.06);
+  --ew-shadow-md: 0 10px 34px rgba(20,22,26,.10);
+  --ew-shadow-pink: 0 10px 26px rgba(220,140,219,.32);
+}
+
+/* ---------- Dasar ---------- */
+.ew-body, body.ew {
+  background: var(--ew-white);
+  color: var(--ew-ink);
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ew-wrap { max-width: 1140px; margin: 0 auto; padding: 0 20px; }
+.ew-section { padding: 96px 0; }
+.ew-section--tight { padding: 64px 0; }
+.ew-section--paper { background: var(--ew-paper); }
+
+.ew-heading { text-align: center; margin-bottom: 52px; }
+.ew-heading .ew-kicker {
+  display: block; font-size: 13px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ew-ink-mute);
+}
+.ew-heading h2 {
+  margin-top: 10px; font-size: clamp(1.5rem, 3vw, 1.75rem);
+  line-height: 1.35; font-weight: 900; text-transform: capitalize; color: var(--ew-ink);
+}
+.ew-heading h2 em { font-style: normal; color: var(--ew-blush); }
+.ew-heading p { margin-top: 18px; max-width: 62ch; margin-left: auto; margin-right: auto; color: var(--ew-ink-soft); }
+
+/* ---------- Tombol ---------- */
+.ew-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em;
+  padding: 13px 30px; border-radius: var(--ew-radius); border: 1px solid transparent;
+  transition: transform .2s ease, opacity .2s ease, box-shadow .2s ease;
+  cursor: pointer;
+}
+.ew-btn--grad { background: var(--ew-grad); color: #fff; box-shadow: var(--ew-shadow-pink); }
+.ew-btn--grad:hover { opacity: .92; transform: translateY(-1px); }
+.ew-btn--white { background: #fff; color: var(--ew-blush); }
+.ew-btn--white:hover { opacity: .9; }
+.ew-btn--ghost { background: transparent; color: var(--ew-ink); border-color: var(--ew-line); }
+.ew-btn--ghost:hover { border-color: var(--ew-blush); color: var(--ew-blush); }
+.ew-btn[disabled] { opacity: .6; cursor: not-allowed; }
+.ew-text-btn { font-size: 14px; font-weight: 600; color: var(--ew-blush); }
+.ew-text-btn:hover { opacity: .8; }
+
+/* ---------- Header transparan di atas banner ---------- */
+.ew-header {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 100; height: 88px;
+  transition: background .3s ease, box-shadow .3s ease, height .3s ease;
+}
+.ew-header.is-solid {
+  position: fixed; background: var(--ew-grad); height: 74px;
+  box-shadow: 0 4px 18px rgba(20,22,26,.16);
+}
+.ew-header-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; height: 100%;
+}
+.ew-logo { display: flex; align-items: center; gap: 11px; color: #fff; }
+.ew-logo-mark {
+  width: 40px; height: 40px; border-radius: var(--ew-radius); display: grid; place-items: center;
+  background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.34);
+  font-weight: 800; font-size: 13px; letter-spacing: .04em;
+}
+.ew-logo-name { font-size: 15px; font-weight: 700; line-height: 1.25; }
+.ew-logo-sub { display: block; font-size: 10.5px; font-weight: 400; opacity: .88; }
+.ew-nav { display: flex; align-items: center; gap: 26px; }
+.ew-nav a {
+  font-size: 13.5px; color: #fff; letter-spacing: .01em;
+  transition: opacity .2s ease;
+}
+.ew-nav a:hover { opacity: .72; }
+
+/* ---------- Banner / hero ---------- */
+.ew-hero {
+  position: relative; padding: 150px 0 96px; overflow: hidden;
+  background: var(--ew-grad);
+}
+.ew-hero::after {
+  content: ''; position: absolute; right: -8%; top: -18%;
+  width: 620px; height: 620px; border-radius: 50%;
+  background: rgba(255,255,255,.10); pointer-events: none;
+}
+.ew-hero-grid {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1.05fr .95fr; gap: 46px; align-items: center;
+}
+.ew-hero .ew-kicker {
+  display: block; font-size: 13px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(255,255,255,.9); margin-bottom: 14px;
+}
+.ew-hero h1 {
+  color: #fff; font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.18; font-weight: 800;
+  max-width: 22ch;
+}
+.ew-hero h1 span, .ew-hero h1 em { color: #4A1449; font-style: normal; }
+.ew-hero p { color: rgba(255,255,255,.94); font-size: 15px; line-height: 1.75; margin-top: 18px; max-width: 56ch; }
+.ew-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+
+.ew-hero-card {
+  background: #fff; border-radius: var(--ew-radius-lg); padding: 26px;
+  box-shadow: 0 18px 46px rgba(74,20,73,.20);
+}
+.ew-hero-card h3 { font-size: 15px; font-weight: 800; color: var(--ew-ink); margin-bottom: 14px; }
+.ew-hero-list { display: grid; gap: 12px; }
+.ew-hero-item { display: flex; gap: 11px; font-size: 12.5px; color: var(--ew-ink-soft); line-height: 1.65; }
+.ew-hero-item strong { color: var(--ew-ink); }
+.ew-hero-dot {
+  width: 28px; height: 28px; border-radius: var(--ew-radius); flex-shrink: 0;
+  display: grid; place-items: center; background: var(--ew-grad-soft); color: var(--ew-blush);
+}
+
+.ew-hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 34px; max-width: 520px; }
+.ew-hero-stat { border-left: 2px solid rgba(255,255,255,.55); padding-left: 13px; }
+.ew-hero-stat b { display: block; color: #fff; font-size: 24px; font-weight: 800; line-height: 1.1; }
+.ew-hero-stat span { display: block; color: rgba(255,255,255,.88); font-size: 11px; margin-top: 3px; }
+
+/* ---------- Kartu layanan ---------- */
+.ew-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.ew-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.ew-card {
+  background: #fff; border: 1px solid var(--ew-line); border-radius: var(--ew-radius-lg);
+  padding: 26px; transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease;
+}
+.ew-card:hover { transform: translateY(-4px); box-shadow: var(--ew-shadow-md); border-color: #E4DDE8; }
+.ew-service-icon {
+  width: 54px; height: 54px; border-radius: var(--ew-radius-lg); display: grid; place-items: center;
+  background: var(--ew-grad-soft); color: var(--ew-blush); margin-bottom: 16px;
+}
+.ew-num-tag {
+  display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .12em;
+  color: var(--ew-blush); margin-bottom: 6px;
+}
+.ew-card h3 { font-size: 16px; font-weight: 800; color: var(--ew-ink); }
+.ew-card .ew-icd { font-size: 11px; font-weight: 600; color: var(--ew-ink-mute); margin-top: 4px; }
+.ew-card p { font-size: 13px; color: var(--ew-ink-soft); line-height: 1.7; margin-top: 8px; }
+
+/* ---------- Bilah langkah bernomor ---------- */
+.ew-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.ew-step { position: relative; padding: 22px 18px; border-radius: var(--ew-radius-lg); background: #fff; border: 1px solid var(--ew-line); }
+.ew-step::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  border-radius: var(--ew-radius-lg) var(--ew-radius-lg) 0 0; background: var(--ew-grad);
+}
+.ew-step b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--ew-blush); }
+.ew-step h4 { font-size: 14px; margin: 7px 0 5px; color: var(--ew-ink); }
+.ew-step p { font-size: 12.5px; color: var(--ew-ink-mute); line-height: 1.65; }
+.ew-step-arrow { position: absolute; right: -13px; top: 50%; color: var(--ew-line); }
+
+/* ---------- Kartu sesi (padanan kartu harga kursus) ---------- */
+.ew-session { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.ew-session-top { position: relative; padding: 22px 22px 18px; background: var(--ew-grad-soft); }
+.ew-session-price {
+  display: inline-block; font-size: 13px; font-weight: 800; color: #fff;
+  background: var(--ew-grad); padding: 6px 14px; border-radius: var(--ew-radius);
+  box-shadow: var(--ew-shadow-pink);
+}
+.ew-session-body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.ew-session-body h3 { font-size: 15.5px; font-weight: 800; color: var(--ew-ink); }
+.ew-session-body p { font-size: 12.5px; color: var(--ew-ink-soft); line-height: 1.65; }
+.ew-session-meta {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px;
+  border-top: 1px solid var(--ew-line-soft);
+}
+.ew-chip {
+  font-size: 10.5px; font-weight: 700; color: var(--ew-ink-soft);
+  background: var(--ew-line-soft); border-radius: 999px; padding: 4px 10px;
+}
+.ew-chip--live { background: #EAF7EF; color: #1D6B41; }
+.ew-chip--wait { background: #FFF3E2; color: #8A5A12; }
+
+/* ---------- Ketersediaan jadwal ---------- */
+.ew-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ew-slot {
+  border: 1px solid var(--ew-line); border-radius: var(--ew-radius);
+  padding: 12px 10px; text-align: center; background: #fff; cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+.ew-slot:hover { border-color: var(--ew-blush); }
+.ew-slot.is-active { background: var(--ew-grad); color: #fff; border-color: transparent; box-shadow: var(--ew-shadow-pink); }
+.ew-slot.is-full { opacity: .45; cursor: not-allowed; }
+.ew-slot b { display: block; font-size: 13.5px; font-weight: 800; }
+.ew-slot span { display: block; font-size: 10.5px; margin-top: 2px; opacity: .85; }
+
+/* ---------- Formulir ---------- */
+.ew-field { display: grid; gap: 6px; margin-bottom: 14px; }
+.ew-field label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ew-ink-mute); }
+.ew-field input, .ew-field select, .ew-field textarea {
+  width: 100%; font-family: inherit; font-size: 13.5px; color: var(--ew-ink);
+  background: #fff; border: 1px solid #DEDEDE; border-radius: var(--ew-radius); padding: 11px 13px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.ew-field input:focus, .ew-field select:focus, .ew-field textarea:focus {
+  outline: none; border-color: var(--ew-blush); box-shadow: 0 0 0 3px rgba(220,140,219,.16);
+}
+.ew-check { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--ew-ink-soft); line-height: 1.6; }
+.ew-check input { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; }
+
+/* ---------- Tab ---------- */
+.ew-tabs { display: inline-flex; gap: 6px; padding: 5px; background: var(--ew-line-soft); border-radius: 999px; flex-wrap: wrap; }
+.ew-tab {
+  font-size: 12.5px; font-weight: 700; color: var(--ew-ink-mute);
+  padding: 9px 18px; border-radius: 999px; border: none; background: transparent; cursor: pointer;
+  transition: background .18s ease, color .18s ease;
+}
+.ew-tab.is-active { background: #fff; color: var(--ew-blush); box-shadow: var(--ew-shadow-sm); }
+
+/* ---------- Panel AI ---------- */
+.ew-ai {
+  border: 1px solid var(--ew-line); border-radius: var(--ew-radius-lg); overflow: hidden;
+  background: #fff; box-shadow: var(--ew-shadow-sm);
+}
+.ew-ai-head {
+  display: flex; gap: 12px; align-items: center; padding: 16px 18px;
+  background: var(--ew-grad); color: #fff;
+}
+.ew-ai-head b { font-size: 13.5px; font-weight: 800; display: block; }
+.ew-ai-head span { font-size: 11px; opacity: .9; }
+.ew-ai-body { padding: 16px 18px; display: grid; gap: 12px; }
+.ew-ai-disclaimer {
+  font-size: 11.5px; line-height: 1.65; color: #8A5A12; background: #FFF6E9;
+  border: 1px solid #F3DFC2; border-radius: var(--ew-radius); padding: 10px 12px;
+}
+.ew-agent-row { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--ew-ink-soft); }
+.ew-agent-dot {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--ew-grad-soft); color: var(--ew-blush); font-size: 10px; font-weight: 800;
+}
+.ew-ai-msg { display: grid; gap: 6px; }
+.ew-ai-msg--user .ew-ai-bubble { background: var(--ew-grad); color: #fff; border-bottom-right-radius: 3px; }
+.ew-ai-bubble {
+  font-size: 12.5px; line-height: 1.65; background: var(--ew-line-soft);
+  border-radius: 12px; padding: 11px 13px; color: var(--ew-ink);
+}
+.ew-ai-source { font-size: 10.5px; color: var(--ew-ink-mute); }
+
+/* ---------- Notifikasi ---------- */
+.ew-note { border-radius: var(--ew-radius); padding: 12px 14px; font-size: 12.5px; font-weight: 600; line-height: 1.6; }
+.ew-note--ok { background: #EAF7EF; color: #1D6B41; border: 1px solid #CBE9D7; }
+.ew-note--warn { background: #FFF6E9; color: #8A5A12; border: 1px solid #F3DFC2; }
+.ew-note--err { background: #FDECEC; color: #8C2F22; border: 1px solid #F3CFCB; }
+.ew-note--info { background: var(--ew-grad-soft); color: #4A1449; border: 1px solid #EDD9EE; }
+
+/* ---------- Direktori tim ---------- */
+.ew-person { display: flex; gap: 13px; align-items: flex-start; }
+.ew-avatar {
+  width: 50px; height: 50px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--ew-grad); color: #fff; font-weight: 800; font-size: 13px;
+}
+
+/* ---------- Testimoni ---------- */
+.ew-quote { position: relative; }
+.ew-quote-mark { font-size: 40px; line-height: 1; color: var(--ew-grad); font-weight: 900; }
+.ew-quote p { font-size: 13px; font-style: italic; color: var(--ew-ink-soft); line-height: 1.75; }
+.ew-quote-author { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+.ew-quote-author b { font-size: 12.5px; color: var(--ew-ink); display: block; }
+.ew-quote-author span { font-size: 11px; color: var(--ew-ink-mute); }
+
+/* ---------- CTA gradien ---------- */
+.ew-cta {
+  background: var(--ew-grad-deep); border-radius: var(--ew-radius-lg);
+  padding: 46px; display: grid; grid-template-columns: 1.3fr .7fr; gap: 28px; align-items: center;
+  color: #fff;
+}
+.ew-cta h3 { font-size: clamp(1.2rem, 2.4vw, 1.55rem); font-weight: 800; line-height: 1.3; }
+.ew-cta p { color: rgba(255,255,255,.92); font-size: 13.5px; margin-top: 10px; line-height: 1.7; }
+
+/* ---------- Kaki halaman ---------- */
+.ew-foot { background: var(--ew-ink); color: #B9B9B9; padding: 58px 0 26px; }
+.ew-foot h4 { color: #fff; font-size: 13px; margin-bottom: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.ew-foot a { display: block; font-size: 12.5px; color: #B9B9B9; margin-bottom: 8px; transition: color .2s ease; }
+.ew-foot a:hover { color: var(--ew-peach); }
+.ew-foot-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 30px; }
+.ew-foot-bottom {
+  display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  border-top: 1px solid rgba(255,255,255,.1); margin-top: 34px; padding-top: 18px; font-size: 11px;
+}
+
+/* ---------- Bilah regulasi ---------- */
+.ew-bar { background: var(--ew-ink); color: #B9B9B9; font-size: 11.5px; padding: 9px 0; }
+.ew-bar-inner { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ew-bar strong { color: #fff; font-weight: 700; }
+
+/* ---------- Responsif ---------- */
+@media (max-width: 1024px) {
+  .ew-hero-grid, .ew-cta { grid-template-columns: 1fr; }
+  .ew-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .ew-steps { grid-template-columns: repeat(2, 1fr); }
+  .ew-step-arrow { display: none; }
+}
+@media (max-width: 720px) {
+  .ew-section { padding: 64px 0; }
+  .ew-grid-3, .ew-grid-2, .ew-steps, .ew-foot-grid { grid-template-columns: 1fr; }
+  .ew-slots { grid-template-columns: repeat(2, 1fr); }
+  .ew-nav { display: none; }
+  .ew-hero { padding: 124px 0 64px; }
+  .ew-hero-stats { grid-template-columns: 1fr 1fr; }
+  .ew-cta { padding: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ew-card, .ew-btn, .ew-slot { transition: none !important; }
+}
+
+
+@keyframes ewSpin { to { transform: rotate(360deg); } }
+.ew-spin { animation: ewSpin .9s linear infinite; }
+
+
+/* ============================================================================
+   LAPISAN ILUSTRASI EDITORIAL
+
+   Gambar asli klien belum tersedia, dan setiap foto pasien anak adalah data
+   pribadi spesifik (UU PDP 27/2022) yang tidak boleh diambil dari internet.
+   Karena itu ilustrasi dibuat sendiri dengan SVG: ringan, tajam di semua
+   ukuran, tanpa risiko hak citra, dan tanpa permintaan jaringan keluar.
+
+   Palet mengikuti identitas EduWell: blush #DC8CDB dan peach #F6BF9F.
+   ========================================================================== */
+
+.ew-figure {
+  position: relative;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--ew-grad, linear-gradient(-145deg, #DC8CDB 0%, #F6BF9F 100%));
+  box-shadow: 0 26px 60px rgba(178, 95, 180, 0.22);
+  aspect-ratio: 4 / 3;
+}
+
+.ew-figure svg { display: block; width: 100%; height: 100%; }
+
+.ew-figure--tall { aspect-ratio: 3 / 4; border-radius: 26px; }
+.ew-figure--wide { aspect-ratio: 16 / 10; }
+
+/* Kartu melayang kecil di sudut ilustrasi, meniru gaya EduWell. */
+.ew-figure-tag {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ew-ink, #14161A);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  backdrop-filter: blur(6px);
+}
+
+/* Baris kartu bergambar untuk bagian pelayanan. */
+.ew-card-media {
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--ew-paper, #FBF9F7);
+  margin-bottom: 16px;
+  aspect-ratio: 16 / 10;
+}
+
+.ew-card-media svg { display: block; width: 100%; height: 100%; }
+
+@media (max-width: 720px) {
+  .ew-figure-tag { font-size: 11px; left: 12px; bottom: 12px; }
+}
+
+
+/* ============================================================================
+   PELENGKAP: bilah identitas dan kaki halaman
+
+   Tiga kelas di bawah dipakai oleh halaman depan tetapi belum ada di tema.
+   Ditambahkan di sini agar tidak ada elemen tanpa gaya sama sekali.
+   ========================================================================== */
+
+.ew-bar-dot { margin: 0 7px; opacity: 0.45; }
+
+/* Kata aksen di judul bagian, gaya EduWell (.section-heading em). */
+.ew-heading h4 em { font-style: normal; color: var(--ew-blush, #DC8CDB); }
+
+.ew-foot-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 40px;
+}
+
+.ew-foot-grid h6 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  opacity: 0.65;
+}
+
+.ew-foot-grid ul { list-style: none; margin: 0; padding: 0; }
+
+.ew-foot-grid li { margin-bottom: 9px; font-size: 14px; }
+
+.ew-foot-grid a { text-decoration: none; opacity: 0.78; }
+
+.ew-foot-grid a:hover { opacity: 1; }
+
+.ew-foot-bottom {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 34px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+@media (max-width: 1024px) {
+  .ew-foot-grid { grid-template-columns: 1fr 1fr; gap: 30px; }
+}
+
+@media (max-width: 720px) {
+  .ew-foot-grid { grid-template-columns: 1fr; gap: 24px; }
+  .ew-foot-bottom { flex-direction: column; }
+}
+
+
+/* ============================================================================
+   LAPISAN PENYEMPURNAAN VISUAL
+
+   Lapisan ini dijalankan terakhir di dalam tema, jadi aturannya menimpa
+   aturan sebelumnya tanpa menghapusnya. Sasaran: menghilangkan kesan kaku
+   dengan skala tipografi yang tegas, ruang kosong yang lapang, kedalaman
+   bayangan yang lembut, dan gerak halus saat kartu disentuh.
+   ========================================================================== */
+
+:root {
+  --ew-font-display: var(--font-jakarta), 'Plus Jakarta Sans', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --ew-font-body: var(--font-jakarta), 'Plus Jakarta Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --ew-line: #EFE7EE;
+  --ew-shadow-sm: 0 2px 8px rgba(20, 22, 26, 0.04);
+  --ew-shadow-md: 0 10px 30px rgba(20, 22, 26, 0.07);
+  --ew-shadow-lg: 0 24px 60px rgba(178, 95, 180, 0.16);
+  --ew-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+html, body.ew-body, .ew-body {
+  font-family: var(--ew-font-body);
+  font-size: 16px;
+  line-height: 1.72;
+  color: #3F4348;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'ss01' 1, 'cv01' 1;
+}
+
+.ew-body h1, .ew-body h2, .ew-body h3, .ew-body h4, .ew-body h5,
+.ew-hero h1, .ew-heading h4, .ew-cta h3, .ew-session-price {
+  font-family: var(--ew-font-display);
+  color: #14161A;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+
+.ew-body p { color: #4A4F55; }
+
+/* --- Ritme bagian ------------------------------------------------------- */
+
+.ew-section { padding: clamp(64px, 9vw, 116px) 0; }
+.ew-section--tight { padding: clamp(40px, 5vw, 64px) 0; }
+.ew-wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+.ew-heading { text-align: center; max-width: 720px; margin: 0 auto clamp(34px, 4vw, 56px); }
+.ew-heading h6 {
+  font-size: 12px; font-weight: 700; letter-spacing: 1.6px;
+  text-transform: uppercase; color: var(--ew-blush, #DC8CDB);
+  margin-bottom: 14px;
+}
+.ew-heading h4 {
+  font-size: clamp(1.6rem, 3.1vw, 2.35rem);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  margin-bottom: 16px;
+}
+.ew-heading p { font-size: 16px; line-height: 1.78; max-width: 620px; margin: 0 auto; }
+
+/* --- Kepala halaman ----------------------------------------------------- */
+
+.ew-header {
+  transition: background .35s var(--ew-ease), box-shadow .35s var(--ew-ease),
+              backdrop-filter .35s var(--ew-ease), padding .35s var(--ew-ease);
+}
+
+.ew-header.is-solid {
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  box-shadow: 0 6px 28px rgba(178, 95, 180, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.ew-nav a {
+  position: relative;
+  transition: opacity .2s var(--ew-ease);
+}
+
+.ew-nav a::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -6px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .28s var(--ew-ease);
+  opacity: .9;
+}
+
+.ew-nav a:hover::after { transform: scaleX(1); }
+
+/* --- Banner utama ------------------------------------------------------- */
+
+.ew-hero {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(96px, 12vw, 150px) 0 clamp(64px, 9vw, 110px);
+  isolation: isolate;
+}
+
+.ew-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto -10% -40% -10%;
+  height: 70%;
+  background: radial-gradient(closest-side, rgba(255,255,255,.30), transparent 75%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.ew-hero-grid { align-items: center; gap: clamp(32px, 5vw, 64px); }
+
+.ew-hero h1 {
+  font-size: clamp(2.1rem, 4.6vw, 3.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  max-width: 19ch;
+  margin-bottom: 20px;
+  text-wrap: balance;
+}
+
+.ew-hero p { font-size: clamp(15px, 1.15vw, 17px); line-height: 1.8; max-width: 52ch; }
+
+.ew-kicker {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 15px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.20);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  font-size: 12px; font-weight: 700; letter-spacing: 1.1px;
+  text-transform: uppercase; color: #fff;
+  backdrop-filter: blur(6px);
+  margin-bottom: 20px;
+}
+
+.ew-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+
+.ew-hero-card {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 26px;
+  padding: 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--ew-shadow-lg);
+}
+
+.ew-hero-stats {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  margin-top: 34px;
+}
+
+.ew-hero-stat {
+  flex: 1 1 128px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--ew-shadow-sm);
+  transition: transform .25s var(--ew-ease), box-shadow .25s var(--ew-ease);
+}
+
+.ew-hero-stat:hover { transform: translateY(-3px); box-shadow: var(--ew-shadow-md); }
+.ew-hero-stat strong { display: block; font-size: 26px; font-weight: 800; color: #14161A; letter-spacing: -0.02em; }
+.ew-hero-stat span { display: block; font-size: 12.5px; color: #6B7075; line-height: 1.45; margin-top: 2px; }
+
+.ew-hero-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 9px; }
+.ew-hero-list li {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 13.5px; line-height: 1.5; color: #fff;
+}
+.ew-hero-list svg { flex: 0 0 auto; margin-top: 2px; }
+
+/* --- Tombol ------------------------------------------------------------- */
+
+.ew-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 24px;
+  border-radius: 10px;
+  font-family: var(--ew-font-body);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform .2s var(--ew-ease), box-shadow .25s var(--ew-ease),
+              opacity .2s var(--ew-ease), background .25s var(--ew-ease);
+  will-change: transform;
+}
+
+.ew-btn--grad {
+  background: var(--ew-grad, linear-gradient(-145deg, #DC8CDB 0%, #F6BF9F 100%));
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(178, 95, 180, 0.28);
+}
+
+.ew-btn--grad:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(178, 95, 180, 0.34); }
+.ew-btn--grad:active { transform: translateY(0); }
+
+.ew-btn--white { background: #fff; color: #B25FB4; border-color: rgba(255,255,255,.9); box-shadow: var(--ew-shadow-sm); }
+.ew-btn--white:hover { transform: translateY(-2px); box-shadow: var(--ew-shadow-md); }
+
+.ew-btn--ghost {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+.ew-btn--ghost:hover { background: rgba(255, 255, 255, 0.22); transform: translateY(-2px); }
+
+.ew-text-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 700; color: #B25FB4;
+  text-decoration: none; letter-spacing: .2px;
+}
+.ew-text-btn:hover { gap: 10px; }
+.ew-text-btn svg { transition: transform .2s var(--ew-ease); }
+
+/* --- Kartu ------------------------------------------------------------- */
+
+.ew-card {
+  background: #fff;
+  border: 1px solid var(--ew-line);
+  border-radius: 20px;
+  padding: clamp(22px, 2.4vw, 30px);
+  box-shadow: var(--ew-shadow-sm);
+  transition: transform .3s var(--ew-ease), box-shadow .3s var(--ew-ease),
+              border-color .3s var(--ew-ease);
+  height: 100%;
+}
+
+.ew-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--ew-shadow-md);
+  border-color: #E4D3E3;
+}
+
+.ew-card h3 { font-size: 18px; line-height: 1.35; margin-bottom: 8px; }
+.ew-card p { font-size: 14.5px; line-height: 1.72; }
+
+.ew-grid-2 { gap: clamp(20px, 2.6vw, 30px); }
+.ew-grid-3 { gap: clamp(20px, 2.6vw, 30px); }
+
+.ew-service-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 58px; height: 58px; border-radius: 16px;
+  background: var(--ew-grad, linear-gradient(-145deg, #DC8CDB 0%, #F6BF9F 100%));
+  box-shadow: 0 8px 20px rgba(178, 95, 180, 0.22);
+  margin-bottom: 18px;
+}
+.ew-service-icon svg { width: 32px; height: 32px; }
+
+.ew-icd {
+  display: inline-block;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+  color: #8A8F95;
+  margin-bottom: 10px;
+}
+
+.ew-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  background: #F7F3F7; border: 1px solid #EEE6ED;
+  font-size: 11.5px; font-weight: 600; color: #6B5A6A;
+}
+.ew-chip--live { background: #EAF7EF; border-color: #CFEBD9; color: #2F7A4E; }
+.ew-chip--wait { background: #FFF6E9; border-color: #F5E2C4; color: #8A5A14; }
+
+/* --- Langkah ----------------------------------------------------------- */
+
+.ew-steps { gap: 14px; align-items: stretch; }
+.ew-step {
+  background: #fff;
+  border: 1px solid var(--ew-line);
+  border-radius: 18px;
+  padding: 26px 24px;
+  box-shadow: var(--ew-shadow-sm);
+}
+.ew-num-tag {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: #FDF1FC; color: #B25FB4;
+  font-size: 13px; font-weight: 800; letter-spacing: .5px;
+  margin-bottom: 14px;
+}
+.ew-step h3 { font-size: 16.5px; margin-bottom: 8px; }
+.ew-step p { font-size: 14px; line-height: 1.7; }
+.ew-step-arrow { color: #D9CBD8; }
+
+/* --- Kartu tarif ------------------------------------------------------- */
+
+.ew-session {
+  background: #fff;
+  border: 1px solid var(--ew-line);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: var(--ew-shadow-sm);
+  transition: transform .3s var(--ew-ease), box-shadow .3s var(--ew-ease);
+  height: 100%;
+}
+.ew-session:hover { transform: translateY(-5px); box-shadow: var(--ew-shadow-md); }
+.ew-session h3 { font-size: 16.5px; line-height: 1.4; }
+.ew-session-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: #7A7F85; }
+.ew-session-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.ew-session-price {
+  margin-top: auto; padding-top: 14px;
+  border-top: 1px dashed #EFE7EE;
+  font-size: 24px; font-weight: 800; letter-spacing: -0.02em;
+  color: #14161A;
+}
+
+/* --- Formulir ---------------------------------------------------------- */
+
+.ew-field { display: grid; gap: 7px; }
+.ew-field label { font-size: 12.5px; font-weight: 700; color: #4A4F55; letter-spacing: .2px; }
+.ew-field input, .ew-field select, .ew-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #E4DCE3;
+  border-radius: 11px;
+  background: #fff;
+  font-family: var(--ew-font-body);
+  font-size: 14.5px;
+  color: #14161A;
+  transition: border-color .18s var(--ew-ease), box-shadow .18s var(--ew-ease);
+}
+.ew-field input:focus, .ew-field select:focus, .ew-field textarea:focus {
+  outline: none;
+  border-color: #DC8CDB;
+  box-shadow: 0 0 0 4px rgba(220, 140, 219, 0.16);
+}
+
+.ew-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.ew-tab {
+  padding: 10px 18px; border-radius: 999px;
+  border: 1px solid #E9DFE8; background: #fff;
+  font-size: 13px; font-weight: 700; color: #6B7075;
+  cursor: pointer;
+  transition: all .2s var(--ew-ease);
+}
+.ew-tab:hover { border-color: #DC8CDB; color: #B25FB4; }
+.ew-tab.is-active, .ew-tab[aria-selected='true'] {
+  background: var(--ew-grad, linear-gradient(-145deg, #DC8CDB 0%, #F6BF9F 100%));
+  border-color: transparent; color: #fff;
+  box-shadow: 0 6px 18px rgba(178, 95, 180, 0.26);
+}
+
+.ew-slot {
+  border: 1px solid #E9DFE8; border-radius: 11px; background: #fff;
+  padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: #4A4F55;
+  cursor: pointer; transition: all .18s var(--ew-ease);
+}
+.ew-slot:hover:not(:disabled) { border-color: #DC8CDB; color: #B25FB4; }
+.ew-slot:disabled { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+
+.ew-note { border-radius: 12px; padding: 13px 15px; font-size: 13px; line-height: 1.65; }
+.ew-note--ok { background: #EDF9F2; color: #22684A; border: 1px solid #CFEBD9; }
+.ew-note--warn { background: #FFF8EC; color: #7A4E0F; border: 1px solid #F5E2C4; }
+.ew-note--info { background: #F6F1FA; color: #4A3A55; border: 1px solid #E7DCF0; }
+.ew-note--err { background: #FDF0F0; color: #7C2C2C; border: 1px solid #F3D6D6; }
+
+/* --- Direktori terapis -------------------------------------------------- */
+
+.ew-person {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 18px 0;
+  border-bottom: 1px solid #F2ECF2;
+}
+.ew-person:last-child { border-bottom: none; padding-bottom: 0; }
+.ew-avatar {
+  flex: 0 0 auto;
+  width: 46px; height: 46px; border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ew-grad, linear-gradient(-145deg, #DC8CDB 0%, #F6BF9F 100%));
+  color: #fff; font-size: 18px; font-weight: 800;
+  box-shadow: 0 6px 16px rgba(178, 95, 180, 0.22);
+}
+.ew-person h3 { font-size: 16px; margin-bottom: 2px; }
+.ew-person p { font-size: 13px; line-height: 1.6; }
+
+.ew-agent-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* --- Ajakan penutup ---------------------------------------------------- */
+
+.ew-cta {
+  border-radius: 28px;
+  padding: clamp(44px, 6vw, 76px) clamp(24px, 4vw, 56px);
+  text-align: center;
+  box-shadow: var(--ew-shadow-lg);
+}
+.ew-cta h3 { font-size: clamp(1.5rem, 2.8vw, 2.1rem); color: #fff; letter-spacing: -0.02em; }
+.ew-cta p { color: rgba(255, 255, 255, 0.94); max-width: 54ch; margin: 14px auto 0; font-size: 15.5px; }
+
+/* --- Kaki halaman ------------------------------------------------------ */
+
+.ew-foot { padding: clamp(48px, 6vw, 72px) 0 28px; }
+.ew-foot p, .ew-foot span { font-size: 13.5px; line-height: 1.7; }
+
+/* --- Gerak masuk ------------------------------------------------------- */
+
+@keyframes ewRise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ew-section > .ew-wrap > .ew-heading,
+.ew-section > .ew-wrap > .ew-grid-2,
+.ew-section > .ew-wrap > .ew-grid-3,
+.ew-section > .ew-wrap > .ew-hero-grid {
+  animation: ewRise .7s var(--ew-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ew-section > .ew-wrap > * { animation: none !important; }
+  .ew-btn, .ew-card, .ew-session, .ew-hero-stat { transition: none !important; }
+}
+
+/* --- Layar kecil ------------------------------------------------------- */
+
+@media (max-width: 1024px) {
+  .ew-hero { padding: clamp(84px, 11vw, 120px) 0 72px; }
+  .ew-hero h1 { max-width: 24ch; }
+}
+
+@media (max-width: 720px) {
+  .ew-section { padding: 56px 0; }
+  .ew-wrap { padding: 0 18px; }
+  .ew-hero-actions .ew-btn { flex: 1 1 100%; }
+  .ew-hero-stats { gap: 10px; }
+  .ew-hero-stat { flex: 1 1 100%; }
+  .ew-card, .ew-step, .ew-session { border-radius: 16px; }
+}

@@ -1,0 +1,66 @@
+
+{
+  "name": "simklinik-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SIMKLINIK & RME Desktop - aplikasi klinik terapi wicara dengan basis data lokal",
+  "main": "electron/main.js",
+  "author": "WicaraSehat",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "build:web": "npm --prefix ../terapi-wicara-web run build",
+    "dist:win": "npm run build:web && electron-builder --win --x64",
+    "dist:portable": "npm run build:web && electron-builder --win portable --x64"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "id.wicarasehat.simklinik",
+    "productName": "SIMKLINIK RME",
+    "copyright": "Copyright 2026 WicaraSehat",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "lib/**/*",
+      "db/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "extraResources": [
+      { "from": "../terapi-wicara-web/.next/standalone", "to": "web" },
+      { "from": "../terapi-wicara-web/.next/static", "to": "web/.next/static" },
+      { "from": "../terapi-wicara-web/public", "to": "web/public" },
+      { "from": "renderer", "to": "renderer" }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "SIMKLINIK-RME-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SIMKLINIK RME",
+      "installerLanguages": ["id_ID"],
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

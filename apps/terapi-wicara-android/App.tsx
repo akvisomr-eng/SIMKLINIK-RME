@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +19,7 @@ import {
   LockKeyhole,
   ShieldCheck,
   Stethoscope,
+  Wallet,
 } from 'lucide-react-native';
 import { OFFLINE_FALLBACK_BOOTSTRAP } from './src/data/clinicalCatalogs';
 import {
@@ -28,20 +30,32 @@ import {
   submitInterprofessionalReferral,
   submitPpiOrIncidentLog,
 } from './src/services/rmeSyncService';
+import { changePin, loginWithPin } from './src/services/authService';
 import { ActiveSessionScreen } from './src/screens/ActiveSessionScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
 import { AssessmentScreen } from './src/screens/AssessmentScreen';
 import { ComplianceScreen } from './src/screens/ComplianceScreen';
+import { DataManagerScreen } from './src/screens/DataManagerScreen';
 import { PatientsRmeScreen } from './src/screens/PatientsRmeScreen';
 import { AppointmentItem, BootstrapClinicalData } from './src/types/clinical';
 import { getSipDaysRemaining } from './src/utils/clinicalFormatters';
 
-type BottomTab = 'AGENDA' | 'ASESMEN' | 'SESI_SOAP' | 'RME_PASIEN' | 'KEPATUHAN';
+type BottomTab =
+  | 'AGENDA'
+  | 'ASESMEN'
+  | 'SESI_SOAP'
+  | 'RME_PASIEN'
+  | 'OPERASIONAL'
+  | 'KEPATUHAN';
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(true);
-  const [pinInput, setPinInput] = useState('240826');
+  const [authenticated, setAuthenticated] = useState(false);
+  const [pinInput, setPinInput] = useState('');
   const [employeeNumber, setEmployeeNumber] = useState(DEFAULT_EMPLOYEE_NUMBER);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [pinMode, setPinMode] = useState<'LOGIN' | 'GANTI'>('LOGIN');
+  const [newPin, setNewPin] = useState('');
 
   const [currentTab, setCurrentTab] = useState<BottomTab>('AGENDA');
   const [clinicalData, setClinicalData] = useState<BootstrapClinicalData>(
@@ -52,7 +66,7 @@ export default function App() {
   >('ENCRYPTED_LOCAL_CACHE');
   const [pendingQueueCount, setPendingQueueCount] = useState(0);
   const [offlineMode, setOfflineMode] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [selectedPatientId, setSelectedPatientId] = useState<string>(
@@ -87,9 +101,45 @@ export default function App() {
     [employeeNumber, offlineMode, selectedPatientId]
   );
 
+  const handleLogin = async () => {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      if (pinMode === 'GANTI') {
+        if (newPin.trim().length < 6) {
+          setAuthError('PIN baru minimal 6 angka.');
+          return;
+        }
+        const res = await changePin(employeeNumber, pinInput, newPin);
+        if (!res.ok) {
+          setAuthError(res.message);
+          return;
+        }
+        setAuthError(null);
+        showToast(res.message);
+        setPinMode('LOGIN');
+        setPinInput('');
+        setNewPin('');
+        return;
+      }
+
+      const res = await loginWithPin(employeeNumber, pinInput);
+      if (!res.ok) {
+        setAuthError(res.message);
+        return;
+      }
+      setAuthenticated(true);
+      setPinInput('');
+      await loadData(offlineMode);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   useEffect(() => {
-    loadData(false);
-  }, []);
+    if (authenticated) loadData(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
 
   const sipDaysLeft = getSipDaysRemaining(clinicalData.therapist.sip_valid_until);
   const isSipExpired = sipDaysLeft <= 0;
@@ -100,7 +150,7 @@ export default function App() {
         <StatusBar style="light" />
         <View style={styles.authCard}>
           <View style={styles.authBadgeRow}>
-            <ShieldCheck size={22} color="#14B8A6" />
+            <ShieldCheck size={22} color="#2A8871" />
             <Text style={styles.authAppTitle}>WicaraSehat Terapis Android</Text>
           </View>
           <Text style={styles.authSubtitle}>
@@ -111,28 +161,68 @@ export default function App() {
           <TextInput
             value={employeeNumber}
             onChangeText={setEmployeeNumber}
+            autoCapitalize="characters"
             style={styles.authInput}
           />
 
-          <Text style={styles.authLabel}>PIN Sesi Klinis RME:</Text>
+          <Text style={styles.authLabel}>
+            {pinMode === 'LOGIN' ? 'PIN Sesi Klinis RME:' : 'PIN Lama:'}
+          </Text>
           <TextInput
             value={pinInput}
             onChangeText={setPinInput}
             secureTextEntry
             keyboardType="numeric"
+            placeholder="6-8 angka"
+            placeholderTextColor="#7E93A3"
             style={styles.authInput}
           />
 
+          {pinMode === 'GANTI' && (
+            <>
+              <Text style={styles.authLabel}>PIN Baru:</Text>
+              <TextInput
+                value={newPin}
+                onChangeText={setNewPin}
+                secureTextEntry
+                keyboardType="numeric"
+                placeholder="6-8 angka"
+                placeholderTextColor="#7E93A3"
+                style={styles.authInput}
+              />
+            </>
+          )}
+
+          {authError && (
+            <View style={styles.authErrorBox}>
+              <Text style={styles.authErrorText}>{authError}</Text>
+            </View>
+          )}
+
+          <Pressable onPress={handleLogin} style={styles.biometricBtn} disabled={authBusy}>
+            {authBusy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Fingerprint size={18} color="#FFFFFF" />
+                <Text style={styles.biometricBtnText}>
+                  {pinMode === 'LOGIN'
+                    ? 'Masuk dengan PIN Sesi Klinis'
+                    : 'Simpan PIN Baru'}
+                </Text>
+              </>
+            )}
+          </Pressable>
+
           <Pressable
             onPress={() => {
-              setAuthenticated(true);
-              loadData(offlineMode);
+              setPinMode(pinMode === 'LOGIN' ? 'GANTI' : 'LOGIN');
+              setAuthError(null);
             }}
-            style={styles.biometricBtn}
+            style={styles.authSwitch}
           >
-            <Fingerprint size={18} color="#FFFFFF" />
-            <Text style={styles.biometricBtnText}>
-              Masuk dengan Biometrik / Verifikasi SIP Aktif
+            <Text style={styles.authSwitchText}>
+              {pinMode === 'LOGIN' ? 'Ganti PIN sesi' : 'Kembali ke halaman masuk'}
             </Text>
           </Pressable>
         </View>
@@ -143,9 +233,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.appOuter}>
       <StatusBar style="light" />
-      {/* Responsive Mobile Android Frame on Wide Web Preview, Native Fullscreen on Android */}
       <View style={styles.deviceShell}>
-        {/* Top App Bar */}
         <View style={styles.topAppBar}>
           <View style={{ flex: 1 }}>
             <Text style={styles.appBarSuper}>
@@ -157,15 +245,17 @@ export default function App() {
           </View>
 
           <Pressable
-            onPress={() => setAuthenticated(false)}
+            onPress={() => {
+              setAuthenticated(false);
+              setCurrentTab('AGENDA');
+            }}
             style={styles.lockSessionBtn}
           >
-            <LockKeyhole size={14} color="#CCFBF1" />
+            <LockKeyhole size={14} color="#DCEFE7" />
             <Text style={styles.lockSessionText}>Kunci Sesi</Text>
           </Pressable>
         </View>
 
-        {/* Legal SIP Hard-Lock Warning if expired */}
         {isSipExpired && (
           <View style={styles.sipBlockedBar}>
             <Text style={styles.sipBlockedText}>
@@ -174,18 +264,16 @@ export default function App() {
           </View>
         )}
 
-        {/* Feedback Toast */}
         {toastMessage && (
           <View style={styles.toastBanner}>
             <Text style={styles.toastText}>{toastMessage}</Text>
           </View>
         )}
 
-        {/* Main Screen Body */}
         <View style={styles.mainViewport}>
           {loading ? (
             <View style={styles.loaderBox}>
-              <ActivityIndicator size="large" color="#0F766E" />
+              <ActivityIndicator size="large" color="#1E6B57" />
               <Text style={styles.loaderText}>
                 Menyinkronkan Rekam Medis Elektronik & Kredensial SIP...
               </Text>
@@ -283,6 +371,14 @@ export default function App() {
                 />
               )}
 
+              {currentTab === 'OPERASIONAL' && (
+                <DataManagerScreen
+                  therapist={clinicalData.therapist}
+                  patients={clinicalData.patients}
+                  onDataChanged={() => loadData(offlineMode)}
+                />
+              )}
+
               {currentTab === 'KEPATUHAN' && (
                 <ComplianceScreen
                   therapist={clinicalData.therapist}
@@ -302,14 +398,14 @@ export default function App() {
           )}
         </View>
 
-        {/* Bottom Android Navigation Bar */}
         <View style={styles.bottomNav}>
           {[
             { id: 'AGENDA' as const, label: 'Jadwal', Icon: CalendarClock },
-            { id: 'ASESMEN' as const, label: 'Asesmen 5A', Icon: Stethoscope },
-            { id: 'SESI_SOAP' as const, label: 'Terapi/SOAP', Icon: ClipboardList },
-            { id: 'RME_PASIEN' as const, label: 'RME Pasien', Icon: FolderHeart },
-            { id: 'KEPATUHAN' as const, label: 'SOP & PPI', Icon: ShieldCheck },
+            { id: 'ASESMEN' as const, label: 'Asesmen', Icon: Stethoscope },
+            { id: 'SESI_SOAP' as const, label: 'Terapi', Icon: ClipboardList },
+            { id: 'RME_PASIEN' as const, label: 'RME', Icon: FolderHeart },
+            { id: 'OPERASIONAL' as const, label: 'Operasional', Icon: Wallet },
+            { id: 'KEPATUHAN' as const, label: 'Mutu', Icon: ShieldCheck },
           ].map(({ id, label, Icon }) => {
             const active = currentTab === id;
             return (
@@ -319,7 +415,7 @@ export default function App() {
                 style={styles.navTab}
               >
                 <View style={[styles.navIconPill, active && styles.navIconPillActive]}>
-                  <Icon size={18} color={active ? '#0F766E' : '#64748B'} />
+                  <Icon size={17} color={active ? '#1E6B57' : '#5A7285'} />
                 </View>
                 <Text style={[styles.navLabel, active && styles.navLabelActive]}>
                   {label}
@@ -336,7 +432,7 @@ export default function App() {
 const styles = StyleSheet.create({
   authRoot: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A1F2E',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -344,11 +440,11 @@ const styles = StyleSheet.create({
   authCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#103F35',
     borderRadius: 20,
     padding: 22,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#24435A',
   },
   authBadgeRow: {
     flexDirection: 'row',
@@ -357,27 +453,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   authAppTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-  authSubtitle: { color: '#94A3B8', fontSize: 12, lineHeight: 18, marginBottom: 16 },
+  authSubtitle: { color: '#AFC6BF', fontSize: 12, lineHeight: 18, marginBottom: 16 },
   authLabel: {
-    color: '#CBD5E1',
+    color: '#DCD7CD',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 10,
     marginBottom: 5,
   },
   authInput: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A1F2E',
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: '#3C5D57',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: '#FFFFFF',
     fontSize: 14,
   },
+  authErrorBox: {
+    marginTop: 12,
+    backgroundColor: '#8C2F22',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  authErrorText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
   biometricBtn: {
     marginTop: 18,
-    backgroundColor: '#0F766E',
+    backgroundColor: '#1E6B57',
     borderRadius: 12,
     paddingVertical: 14,
     flexDirection: 'row',
@@ -386,23 +490,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   biometricBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  authSwitch: { marginTop: 12, alignItems: 'center' },
+  authSwitchText: { color: '#9FD3C2', fontSize: 11.5, fontWeight: '700' },
   appOuter: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A1F2E',
     alignItems: 'center',
   },
   deviceShell: {
     flex: 1,
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 520 : undefined,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F6F4EF',
     overflow: 'hidden',
     borderLeftWidth: Platform.OS === 'web' ? 1 : 0,
     borderRightWidth: Platform.OS === 'web' ? 1 : 0,
-    borderColor: '#334155',
+    borderColor: '#24435A',
   },
   topAppBar: {
-    backgroundColor: '#115E59',
+    backgroundColor: '#103F35',
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -411,7 +517,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   appBarSuper: {
-    color: '#99F6E4',
+    color: '#AFC6BF',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.4,
@@ -426,24 +532,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    backgroundColor: 'rgba(10, 31, 46, 0.4)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  lockSessionText: { color: '#CCFBF1', fontSize: 11, fontWeight: '700' },
+  lockSessionText: { color: '#DCEFE7', fontSize: 11, fontWeight: '700' },
   sipBlockedBar: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#8C2F22',
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   sipBlockedText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   toastBanner: {
-    backgroundColor: '#065F46',
+    backgroundColor: '#174F38',
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  toastText: { color: '#ECFDF5', fontSize: 12, fontWeight: '700' },
+  toastText: { color: '#E3F2EA', fontSize: 12, fontWeight: '700' },
   mainViewport: { flex: 1 },
   loaderBox: {
     flex: 1,
@@ -454,7 +560,7 @@ const styles = StyleSheet.create({
   loaderText: {
     marginTop: 12,
     fontSize: 13,
-    color: '#475569',
+    color: '#24435A',
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -462,9 +568,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E4E0D8',
     paddingVertical: 7,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   navTab: {
     flex: 1,
@@ -472,21 +578,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navIconPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
   },
   navIconPillActive: {
-    backgroundColor: '#CCFBF1',
+    backgroundColor: '#DCEFE7',
   },
   navLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#5A7285',
     marginTop: 2,
   },
   navLabelActive: {
-    color: '#0F766E',
+    color: '#1E6B57',
     fontWeight: '800',
   },
 });

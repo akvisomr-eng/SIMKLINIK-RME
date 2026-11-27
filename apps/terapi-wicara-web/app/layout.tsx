@@ -1,11 +1,50 @@
-import type { Metadata } from 'next';
-import { Analytics } from '@vercel/analytics/next';
+
+import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 
+/**
+ * Tipografi.
+ *
+ * Huruf sebelumnya memakai Open Sans bawaan template. Untuk klinik, huruf itu
+ * terasa netral dan agak kaku. Plus Jakarta Sans dipilih karena buatan Indonesia,
+ * memiliki bobot tebal yang tegas untuk judul, dan tetap terbaca nyaman pada
+ * ukuran kecil. Dimuat lewat next/font agar tidak ada permintaan ke Google saat
+ * halaman dibuka pasien (lebih cepat dan tidak membocorkan IP pengunjung).
+ */
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  display: 'swap',
+  variable: '--font-jakarta',
+});
+
 export const metadata: Metadata = {
-  title: 'WicaraSehat — SIMKLINIK Desktop & Portal Resmi Klinik Terapi Wicara',
+  title: 'WicaraSehat - Klinik Terapi Wicara, Bahasa & Menelan | Kediri',
   description:
-    'Sistem Manajemen Klinik Terapi Wicara (RME Permenkes 24/2022, Standar Pelayanan Permenkes 81/2014, Bridging SATUSEHAT, Akreditasi Klinik & Pelindungan Data UU PDP).',
+    'Layanan terapi wicara, bahasa, suara, dan menelan oleh terapis ber-STR dengan SIP aktif Dinas Kesehatan. Asesmen terukur, program individual, rekam medis elektronik terhubung SATUSEHAT.',
+  applicationName: 'SIMKLINIK',
+  keywords: [
+    'terapi wicara',
+    'klinik terapi wicara Kediri',
+    'speech delay',
+    'terapis wicara',
+    'disfagia',
+    'gagap',
+  ],
+  openGraph: {
+    title: 'WicaraSehat - Klinik Terapi Wicara di Kediri',
+    description:
+      'Asesmen terukur dan program terapi individual untuk gangguan bahasa, bicara, suara, kelancaran, dan menelan.',
+    type: 'website',
+    locale: 'id_ID',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#DC8CDB',
 };
 
 export default function RootLayout({
@@ -14,11 +53,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
-      <body>
-        {children}
-        <Analytics />
-      </body>
+    <html lang="id" className={jakarta.variable}>
+      <body className="ew-body">{children}</body>
     </html>
   );
 }
