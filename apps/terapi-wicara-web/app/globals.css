@@ -897,6 +897,7 @@ html, body.ew-body, .ew-body {
 }
 /* === EDUWELL THEME END === */
 
+
 :root {
   --bg-slate: #f1f5f9;
   --surface: #ffffff;
@@ -1508,6 +1509,7 @@ textarea {
   .crud-grid { grid-template-columns: 1fr; }
   .crud-span-2, .crud-span-3 { grid-column: span 1; }
 }
+
 
 /* === EDUWELL TAIL START === */
 html, body { background-color: #FFFFFF; color: #14161A; }
