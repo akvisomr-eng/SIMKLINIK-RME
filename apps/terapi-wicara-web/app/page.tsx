@@ -1,91 +1,96 @@
-
 'use client';
 
 /**
  * Situs publik SIMKLINIK - halaman depan.
  *
- * Bahasa desain mengikuti TemplateMo 573 EduWell (lisensi bebas, termasuk untuk
- * situs komersial; yang tidak boleh hanya mendistribusikan ulang ZIP templatenya).
- * Seluruh markup dan CSS ditulis ulang untuk konteks klinik terapi wicara.
+ * Bahasa desain: TemplateMo 555 Upright (lisensi bebas untuk situs komersial;
+ * yang dilarang hanya mendistribusikan ulang ZIP templatenya). Tata letaknya
+ * dipertahankan: kolom kiri tetap berisi logo dan menu, kolom gambar tegak,
+ * dan kolom isi yang bergulir di kanan.
  *
- * Situs ini terpisah dari dasbor SIMKLINIK. Tidak ada tautan ke dasbor di sini:
+ * Halaman ini terpisah dari dasbor SIMKLINIK. Tidak ada tautan ke dasbor:
  * petugas masuk lewat alamatnya sendiri, pasien memakai portal pasien.
- * Yang tetap menyatu adalah datanya - angka layanan, tarif, terapis, dan slot
- * dibaca dari basis data klinik yang sama, dan setiap pendaftaran masuk ke
- * meja admisi SIMKLINIK lewat RPC.
+ * Yang menyatu adalah datanya - tarif, terapis, ruang, dan slot dibaca dari
+ * basis data klinik yang sama, dan setiap permintaan masuk ke meja admisi
+ * lewat RPC.
+ *
+ * Foto: Unsplash (lisensi Unsplash: gratis untuk komersial, tanpa atribusi
+ * wajib). Tidak ada foto pasien klinik - semua gambar stok berlisensi.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Activity,
   ArrowRight,
   CalendarCheck,
-  CheckCircle2,
   Clock,
-  Ear,
-  HeartHandshake,
   MapPin,
+  MessageCircle,
   Phone,
   ShieldCheck,
   Sparkles,
-  Stethoscope,
   Volume2,
 } from 'lucide-react';
 import { FALLBACK_SIMKLINIK_DATA, getBrowserSupabase } from '../src/lib/supabaseClient';
 import { CareRequestForms } from '../src/components/CareRequestForms';
-import {
-  AiTriageFigure,
-  AssessmentFigure,
-  HeroSessionFigure,
-  PrivacyFigure,
-  ServiceGlyph,
-  SwallowFigure,
-} from '../src/components/siteIllustrations';
+import { ServiceGlyph } from '../src/components/siteIllustrations';
 
-/** Format rupiah lokal, tidak bergantung pada ekspor tambahan dari pustaka klien. */
 const formatRupiah = (v: number) => 'Rp' + (v ?? 0).toLocaleString('id-ID');
+
+/** Foto Unsplash: parameter w dan q mengecilkan berkas agar halaman ringan. */
+const U = (id: string, w: number) =>
+  'https://images.unsplash.com/' + id + '?auto=format&fit=crop&w=' + w + '&q=72';
+
+const IMG_HERO_1 = U('photo-1758598737516-ffd38ba74838', 520);
+const IMG_HERO_2 = U('photo-1771765767087-ce71e4a7916a', 520);
+const IMG_HERO_3 = U('photo-1758598737505-90a3084105ac', 520);
+const IMG_ASESSMEN = U('photo-1758598737516-ffd38ba74838', 1200);
+const IMG_TERAPI = U('photo-1771765767087-ce71e4a7916a', 900);
+const IMG_ANAK = U('photo-1786292949404-084cbd10c7b1', 900);
+const IMG_TANGAN = U('photo-1728138240695-54ebc33215f2', 900);
+const IMG_DEWASA = U('photo-1758273240373-370993d0275d', 900);
+const IMG_RUANG = U('photo-1728138127500-fb73c1313f76', 900);
 
 const SERVICES = [
   {
     glyph: 'bahasa' as const,
     title: 'Gangguan Bahasa',
-    icd: 'ICD-10 F80.1 · F80.2 · F84.0 · R47.01',
+    icd: 'ICD-10 F80.1 - F80.2 - F84.0 - R47.01',
     body:
       'Keterlambatan bicara-bahasa (speech delay), gangguan bahasa reseptif-ekspresif, komunikasi sosial pragmatik pada ASD/ADHD, serta rehabilitasi afasia pasca-stroke.',
   },
   {
     glyph: 'bicara' as const,
     title: 'Gangguan Bicara',
-    icd: 'ICD-10 F80.0 · R47.1 · Q35–Q37',
+    icd: 'ICD-10 F80.0 - R47.1 - Q35-Q37',
     body:
       'Gangguan artikulasi dan fonologi anak, Childhood Apraxia of Speech (CAS), disartria neurogenik, serta terapi resonansi pasca-operasi celah bibir dan langit-langit.',
   },
   {
     glyph: 'suara' as const,
     title: 'Gangguan Suara',
-    icd: 'ICD-10 R49.0 · J38.2',
+    icd: 'ICD-10 R49.0 - J38.2',
     body:
       'Higienitas vokal dan fungsi fonasi pada nodul pita suara, paralisis plika vokalis, hipernasalitas, dan rehabilitasi pasca-laringektomi.',
   },
   {
     glyph: 'irama' as const,
     title: 'Kelancaran Bicara',
-    icd: 'ICD-10 F98.5 · F98.6',
+    icd: 'ICD-10 F98.5 - F98.6',
     body:
       'Penanganan gagap (stuttering) perkembangan anak hingga dewasa serta cluttering, memakai pendekatan modifikasi gagap dan pembentukan kelancaran.',
   },
   {
     glyph: 'menelan' as const,
     title: 'Menelan & Makan',
-    icd: 'ICD-10 R13.10 · F98.2',
+    icd: 'ICD-10 R13.10 - F98.2',
     body:
-      'Asesmen menelan klinis berpanduan saturasi oksigen (SpO2), modifikasi diet standar IDDSI Level 0–7, dan terapi makan pediatrik.',
+      'Asesmen menelan klinis berpanduan saturasi oksigen (SpO2), modifikasi diet standar IDDSI Level 0-7, dan terapi makan pediatrik.',
   },
   {
     glyph: 'aural' as const,
     title: 'Rehabilitasi Aural & AAC',
-    icd: 'AVT · Augmentative Communication',
+    icd: 'AVT - Augmentative Communication',
     body:
       'Terapi Auditory-Verbal pasca pemasangan alat bantu dengar atau implan koklea, serta penyediaan papan komunikasi alternatif fungsional.',
   },
@@ -114,6 +119,13 @@ const STEPS = [
   },
 ];
 
+const GALERI = [
+  { img: IMG_TERAPI, label: 'Sesi terapi tatap muka' },
+  { img: IMG_ANAK, label: 'Latihan artikulasi anak' },
+  { img: IMG_RUANG, label: 'Ruang terapi kedap suara' },
+  { img: IMG_TANGAN, label: 'Stimulasi oromotor' },
+];
+
 const FAQ = [
   {
     q: 'Apakah konsultasi AI di situs ini bisa menggantikan pemeriksaan terapis?',
@@ -133,19 +145,21 @@ const FAQ = [
   },
 ];
 
+const NAV = [
+  { href: '#layanan', label: 'Layanan', Icon: Sparkles },
+  { href: '#alur', label: 'Alur pasien', Icon: ArrowRight },
+  { href: '#galeri', label: 'Ruang terapi', Icon: MapPin },
+  { href: '#tarif', label: 'Tarif', Icon: Clock },
+  { href: '#daftar', label: 'Daftar online', Icon: CalendarCheck },
+  { href: '#tim', label: 'Terapis', Icon: ShieldCheck },
+  { href: '#tanya', label: 'Pertanyaan', Icon: MessageCircle },
+];
+
 export default function PublicClinicWebsitePage() {
   const [clinic, setClinic] = useState(FALLBACK_SIMKLINIK_DATA.clinic);
   const [therapists, setTherapists] = useState(FALLBACK_SIMKLINIK_DATA.therapists);
   const [rooms, setRooms] = useState(FALLBACK_SIMKLINIK_DATA.rooms);
   const [tariffs, setTariffs] = useState(FALLBACK_SIMKLINIK_DATA.tariffs);
-  const [solid, setSolid] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setSolid(window.scrollY > 60);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   useEffect(() => {
     const sb = getBrowserSupabase();
@@ -170,436 +184,362 @@ export default function PublicClinicWebsitePage() {
   const activeTherapists = therapists.filter((t) => t.is_active);
 
   return (
-    <div className="ew-body">
-      {/* Bilah identitas resmi */}
-      <div className="ew-bar">
-        <div className="ew-bar-inner">
-          <span>
+    <div className="up-app">
+      <aside className="up-side">
+        <Link href="/" className="up-brand">
+          <span className="up-brand-mark">
+            <Volume2 size={14} /> Terapi wicara
+          </span>
+          <span className="up-brand-name">WicaraSehat</span>
+          <span className="up-brand-sub">Klinik utama rehabilitasi medik - Kediri</span>
+        </Link>
+
+        <ul className="up-nav">
+          {NAV.map(({ href, label, Icon }) => (
+            <li key={href}>
+              <a className="up-nav-link" href={href}>
+                <Icon size={16} />
+                {label}
+              </a>
+            </li>
+          ))}
+          <li>
+            <Link className="up-nav-link" href="/portal-pasien">
+              <ShieldCheck size={16} />
+              Portal pasien
+            </Link>
+          </li>
+        </ul>
+
+        <div className="up-side-foot">
+          <p>
             Izin Dinkes <strong>{clinic.dinkes_license_number}</strong>
-            <span className="ew-bar-dot">·</span>
-            Fasyankes <strong>{clinic.fasyankes_code}</strong>
-          </span>
-          <span>
-            Akreditasi <strong>{clinic.accreditation_status}</strong>
-            <span className="ew-bar-dot">·</span>
-            Terhubung SATUSEHAT
-          </span>
-        </div>
-      </div>
-
-      {/* Kepala halaman */}
-      <header className={solid ? 'ew-header is-solid' : 'ew-header'}>
-        <div className="ew-header-inner">
-          <Link href="/" className="ew-logo">
-            <span className="ew-logo-mark">
-              <Volume2 size={18} />
-            </span>
-            <span>
-              <span className="ew-logo-name">WicaraSehat</span>
-              <span className="ew-logo-sub">Klinik Terapi Wicara · Kediri</span>
-            </span>
-          </Link>
-
-          <nav className="ew-nav">
-            <a href="#layanan">Layanan</a>
-            <a href="#tarif">Tarif</a>
-            <a href="#alur">Alur</a>
-            <a href="#tim">Terapis</a>
-            <a href="#tanya">Pertanyaan</a>
-            <Link href="/portal-pasien">Portal pasien</Link>
-          </nav>
-
-          <a href="#daftar" className="ew-btn ew-btn--white">
-            <CalendarCheck size={15} /> Daftar online
+          </p>
+          <p>
+            Fasyankes <strong>{clinic.fasyankes_code}</strong> - {clinic.accreditation_status}
+          </p>
+          <a className="up-side-cta" href={`tel:${clinic.phone.replace(/\s/g, '')}`}>
+            <Phone size={15} /> {clinic.phone}
           </a>
         </div>
-      </header>
+      </aside>
 
-      {/* Banner utama */}
-      <section className="ew-hero">
-        <div className="ew-wrap ew-hero-grid">
-          <div>
-            <span className="ew-kicker">Klinik terapi wicara keluarga</span>
-            <h1>
-              Setiap anak berhak <em>didengar</em>, setiap kata layak diperjuangkan
-            </h1>
-            <p>
-              Layanan terapi wicara, bahasa, suara, dan menelan oleh terapis ber-STR
-              dengan SIP aktif Dinas Kesehatan. Asesmen terukur, program individual, dan
-              rekam medis elektronik yang terhubung SATUSEHAT.
-            </p>
-            <div className="ew-hero-actions">
-              <a href="#daftar" className="ew-btn ew-btn--grad">
-                Buat janji periksa <ArrowRight size={16} />
-              </a>
-              <a href="#layanan" className="ew-btn ew-btn--ghost">
-                Lihat layanan
-              </a>
+      <div className="up-figure-col" aria-hidden="true">
+        <figure className="up-figure">
+          <img src={IMG_HERO_1} alt="" loading="eager" />
+          <figcaption>Sesi terapi tatap muka bersama terapis wicara</figcaption>
+        </figure>
+        <figure className="up-figure">
+          <img src={IMG_HERO_2} alt="" loading="lazy" />
+          <figcaption>Latihan artikulasi dan bahasa anak</figcaption>
+        </figure>
+        <figure className="up-figure">
+          <img src={IMG_HERO_3} alt="" loading="lazy" />
+          <figcaption>Pendampingan orang tua di setiap sesi</figcaption>
+        </figure>
+      </div>
+
+      <main className="up-main">
+        <section className="up-section up-hero ew-hero">
+          <span className="up-kicker">Klinik terapi wicara keluarga</span>
+          <h1 className="up-display">
+            Setiap anak berhak <em>didengar</em>, setiap kata layak diperjuangkan
+          </h1>
+          <p className="up-lead">
+            Layanan terapi wicara, bahasa, suara, dan menelan oleh terapis ber-STR dengan
+            SIP aktif Dinas Kesehatan. Asesmen terukur, program individual, dan rekam medis
+            elektronik yang terhubung SATUSEHAT.
+          </p>
+          <div className="up-actions">
+            <a href="#daftar" className="up-btn up-btn--solid">
+              Buat janji periksa <ArrowRight size={16} />
+            </a>
+            <a href="#layanan" className="up-btn up-btn--ghost">
+              Lihat layanan
+            </a>
+          </div>
+          <div className="up-stats">
+            <div className="up-stat">
+              <b>{activeTherapists.length}</b>
+              <span>terapis ber-SIP aktif</span>
             </div>
-
-            <div className="ew-hero-stats">
-              <div className="ew-hero-stat">
-                <strong>{activeTherapists.length}</strong>
-                <span>terapis ber-SIP aktif</span>
-              </div>
-              <div className="ew-hero-stat">
-                <strong>{rooms.length}</strong>
-                <span>ruang terapi kedap suara</span>
-              </div>
-              <div className="ew-hero-stat">
-                <strong>{tariffs.length}</strong>
-                <span>layanan bertarif resmi</span>
-              </div>
+            <div className="up-stat">
+              <b>{rooms.length}</b>
+              <span>ruang terapi kedap suara</span>
+            </div>
+            <div className="up-stat">
+              <b>{tariffs.length}</b>
+              <span>layanan bertarif resmi</span>
             </div>
           </div>
+        </section>
 
-          <div className="ew-hero-card">
-            <HeroSessionFigure />
-            <ul className="ew-hero-list">
-              <li>
-                <CheckCircle2 size={16} /> Terapis ber-STR seumur hidup & SIP aktif
-              </li>
-              <li>
-                <CheckCircle2 size={16} /> Ruang kedap suara dengan cermin artikulasi
-              </li>
-              <li>
-                <CheckCircle2 size={16} /> Program terapi terukur, dievaluasi berkala
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* Layanan */}
-      <section className="ew-section" id="layanan">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Ruang lingkup pelayanan</h6>
-            <h4>
-              Enam bidang <em>layanan klinis</em> terapi wicara
-            </h4>
-            <p>
-              Informasi edukatif sesuai standar profesi, tanpa klaim penyembuhan instan.
-              Setiap pasien dimulai dari asesmen, bukan dari paket yang dipaksakan.
-            </p>
-          </div>
-
-          <div className="ew-grid-3">
+        <section className="up-section" id="layanan">
+          <span className="up-eyebrow">Ruang lingkup pelayanan</span>
+          <h2 className="up-title">
+            Enam bidang <em>layanan klinis</em> terapi wicara
+          </h2>
+          <p className="up-sub">
+            Informasi edukatif sesuai standar profesi, tanpa klaim penyembuhan instan.
+            Setiap pasien dimulai dari asesmen, bukan dari paket yang dipaksakan.
+          </p>
+          <div className="up-grid">
             {SERVICES.map((s) => (
-              <article className="ew-card" key={s.title}>
-                <span className="ew-service-icon">
+              <article className="up-card up-rise" key={s.title}>
+                <span className="up-card-ico">
                   <ServiceGlyph kind={s.glyph} />
                 </span>
                 <h3>{s.title}</h3>
-                <span className="ew-icd">{s.icd}</span>
+                <span className="up-card-code">{s.icd}</span>
                 <p>{s.body}</p>
               </article>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Alur */}
-      <section className="ew-section ew-section--paper" id="alur">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Alur pasien baru</h6>
-            <h4>
-              Empat langkah <em>sederhana</em> sebelum terapi dimulai
-            </h4>
-          </div>
-
-          <div className="ew-steps">
-            {STEPS.map((s, i) => (
-              <React.Fragment key={s.n}>
-                <div className="ew-step">
-                  <span className="ew-num-tag">{s.n}</span>
-                  <h3>{s.title}</h3>
-                  <p>{s.body}</p>
-                </div>
-                {i < STEPS.length - 1 ? (
-                  <span className="ew-step-arrow" aria-hidden="true">
-                    <ArrowRight size={18} />
-                  </span>
-                ) : null}
-              </React.Fragment>
+        <section className="up-section" id="alur">
+          <span className="up-eyebrow">Alur pasien baru</span>
+          <h2 className="up-title">
+            Empat langkah <em>sederhana</em> sebelum terapi dimulai
+          </h2>
+          <p className="up-sub">
+            Setiap tahap tercatat di sistem klinik, jadi tidak ada permintaan yang
+            menggantung tanpa tindak lanjut.
+          </p>
+          <div className="up-steps">
+            {STEPS.map((s) => (
+              <div className="up-step up-rise" key={s.n}>
+                <span className="up-step-num">{s.n}</span>
+                <h3>{s.title}</h3>
+                <p>{s.body}</p>
+              </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Tiga sorotan bergambar */}
-      <section className="ew-section">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Bagaimana kami bekerja</h6>
-            <h4>
-              Asesmen dulu, <em>baru</em> rencana terapi
-            </h4>
-          </div>
-
-          <div className="ew-grid-3">
-            <article className="ew-card">
-              <AssessmentFigure />
-              <h3>Asesmen terukur</h3>
-              <p>
+        <section className="up-section" id="galeri">
+          <span className="up-eyebrow">Di dalam klinik</span>
+          <h2 className="up-title">
+            Ruang yang dirancang untuk <em>mendengar</em>
+          </h2>
+          <p className="up-sub">
+            Sesi berlangsung 45 menit di ruang kedap suara dengan kebisingan di bawah
+            35 dB, dilengkapi cermin artikulasi dan jendela observasi satu arah agar
+            orang tua bisa mengikuti tanpa mengganggu.
+          </p>
+          <figure className="up-shot">
+            <img src={IMG_ASESSMEN} alt="Terapis mendampingi anak dalam sesi latihan bicara" loading="lazy" />
+            <figcaption>
+              <strong>Asesmen dulu, rencana terapi kemudian</strong>
+              <span>
                 Penilaian artikulasi, bahasa, suara, kelancaran, dan menelan dicatat
                 sebagai angka awal. Tanpa angka awal, kemajuan tidak bisa dibuktikan.
-              </p>
-            </article>
-            <article className="ew-card">
-              <SwallowFigure />
-              <h3>Asuhan menelan yang aman</h3>
-              <p>
-                Setiap sesi disfagia dipandu saturasi oksigen dan modifikasi tekstur
-                IDDSI, karena tersedak saat terapi adalah risiko nyata.
-              </p>
-            </article>
-            <article className="ew-card">
-              <AiTriageFigure />
-              <h3>Bantuan analisis, bukan keputusan</h3>
-              <p>
-                Asisten analisis membantu merangkum keluhan sebelum kunjungan. Hasilnya
-                sementara dan bukan diagnosis; keputusan tetap milik terapis.
-              </p>
-            </article>
+              </span>
+            </figcaption>
+          </figure>
+          <div className="up-gallery">
+            {GALERI.map((g) => (
+              <figure className="up-tile" key={g.label}>
+                <img src={g.img} alt={g.label} loading="lazy" />
+                <figcaption>{g.label}</figcaption>
+              </figure>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Tarif */}
-      <section className="ew-section ew-section--paper" id="tarif">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Transparansi biaya</h6>
-            <h4>
-              Tarif resmi <em>tanpa</em> biaya tersembunyi
-            </h4>
-            <p>
-              Harga di bawah dibaca langsung dari master tarif klinik. Bila tarif berubah,
-              halaman ini ikut berubah.
-            </p>
-          </div>
-
-          <div className="ew-grid-3">
+        <section className="up-section" id="tarif">
+          <span className="up-eyebrow">Transparansi biaya</span>
+          <h2 className="up-title">
+            Tarif resmi <em>tanpa</em> biaya tersembunyi
+          </h2>
+          <p className="up-sub">
+            Harga di bawah dibaca langsung dari master tarif klinik. Bila tarif berubah,
+            halaman ini ikut berubah.
+          </p>
+          <div className="up-price-list">
             {tariffs.slice(0, 6).map((t) => (
-              <article className="ew-session" key={t.id}>
-                <div className="ew-session-top">
-                  <span className="ew-icd">{t.service_code}</span>
-                  {t.icd9cm_code ? <span className="ew-chip">{t.icd9cm_code}</span> : null}
-                </div>
-                <div className="ew-session-body">
-                  <h3>{t.service_name}</h3>
-                  <div className="ew-session-meta">
-                    <span>
-                      <Clock size={14} /> {t.duration_minutes} menit
-                    </span>
-                    {t.sessions_included > 1 ? <span>{t.sessions_included} sesi</span> : null}
+              <div className="up-price" key={t.id}>
+                <span className="up-price-name">{t.service_name}</span>
+                <span className="up-price-meta">
+                  {t.service_code} - {t.duration_minutes} menit
+                  {t.sessions_included > 1 ? ' - ' + t.sessions_included + ' sesi' : ''}
+                  {t.icd9cm_code ? ' - ICD-9-CM ' + t.icd9cm_code : ''}
+                </span>
+                <span className="up-price-value">{formatRupiah(t.unit_price_idr)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="up-section" id="daftar">
+          <span className="up-eyebrow">Terhubung ke meja admisi</span>
+          <h2 className="up-title">
+            Janji periksa, pendaftaran, dan <em>konsultasi</em> online
+          </h2>
+          <p className="up-sub">
+            Pilih salah satu pintu masuk. Setiap permintaan tercatat di sistem klinik
+            dengan kode unik, bukan sekadar pesan yang lewat.
+          </p>
+          <CareRequestForms clinicPhone={clinic.phone} />
+        </section>
+
+        <section className="up-section" id="tim">
+          <span className="up-eyebrow">Direktori terapis</span>
+          <h2 className="up-title">
+            Terapis wicara dengan <em>SIP</em> aktif
+          </h2>
+          <p className="up-sub">
+            Setiap terapis ber-STR seumur hidup dan memiliki SIP yang masih berlaku
+            di Dinas Kesehatan Kota Kediri.
+          </p>
+          <div className="up-people">
+            {activeTherapists.map((t) => (
+              <div className="up-person" key={t.id}>
+                <span className="up-avatar">{t.full_name.slice(0, 1)}</span>
+                <div>
+                  <h3>{t.full_name}</h3>
+                  <p>
+                    {t.degree_title} - SIP berlaku hingga {t.sip_valid_until}
+                  </p>
+                  <span className="up-person-code">{t.sip_number}</span>
+                  <div className="up-tags">
+                    {t.specializations.map((s) => (
+                      <span className="up-tag" key={s}>
+                        {s.replace(/_/g, ' ')}
+                      </span>
+                    ))}
                   </div>
                 </div>
-                <div className="ew-session-price">{formatRupiah(t.unit_price_idr)}</div>
+              </div>
+            ))}
+          </div>
+
+          <h2 className="up-title" style={{ marginTop: 44 }}>
+            Tiga ruang <em>kedap suara</em>
+          </h2>
+          <div className="up-grid">
+            {rooms.map((r) => (
+              <article className="up-card" key={r.id}>
+                <span className="up-card-ico">
+                  <MapPin size={20} />
+                </span>
+                <h3>{r.room_code}</h3>
+                <p>{r.room_name}</p>
+                <div className="up-tags" style={{ marginTop: 12 }}>
+                  <span className="up-tag">{r.ambient_noise_db} dB</span>
+                  {r.has_soundproofing ? <span className="up-tag">kedap suara</span> : null}
+                  {r.has_observation_window ? (
+                    <span className="up-tag">observasi wali</span>
+                  ) : null}
+                  <span className="up-tag">{r.sterilization_status}</span>
+                </div>
               </article>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Pendaftaran, janji periksa, konsultasi - semuanya menulis ke basis data */}
-      <section className="ew-section" id="daftar">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Terhubung ke meja admisi</h6>
-            <h4>
-              Janji periksa, pendaftaran, dan <em>konsultasi</em> online
-            </h4>
-            <p>
-              Pilih salah satu pintu masuk. Setiap permintaan tercatat di sistem klinik
-              dengan kode unik, bukan sekadar pesan yang lewat.
-            </p>
-          </div>
-
-          <CareRequestForms clinicPhone={clinic.phone} />
-        </div>
-      </section>
-
-      {/* Tim & ruang */}
-      <section className="ew-section ew-section--paper" id="tim">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Direktori terapis</h6>
-            <h4>
-              Terapis wicara dengan <em>SIP</em> aktif
-            </h4>
-          </div>
-
-          <div className="ew-grid-2">
-            <div className="ew-card">
-              {activeTherapists.map((t) => (
-                <div className="ew-person" key={t.id}>
-                  <span className="ew-avatar">{t.full_name.slice(0, 1)}</span>
-                  <div>
-                    <h3>{t.full_name}</h3>
-                    <p style={{ margin: '4px 0 6px' }}>
-                      {t.degree_title} · SIP berlaku hingga {t.sip_valid_until}
-                    </p>
-                    <span className="ew-icd">{t.sip_number}</span>
-                    <div className="ew-agent-row">
-                      {t.specializations.map((s) => (
-                        <span className="ew-chip" key={s}>
-                          {s.replace(/_/g, ' ')}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="ew-card">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <MapPin size={18} /> Ruang terapi
-              </h3>
-              {rooms.map((r) => (
-                <div key={r.id} style={{ marginBottom: 16 }}>
-                  <strong style={{ fontSize: 15 }}>{r.room_code}</strong>
-                  <p style={{ margin: '4px 0 6px' }}>{r.room_name}</p>
-                  <div className="ew-agent-row">
-                    <span className="ew-chip">{r.ambient_noise_db} dB</span>
-                    {r.has_soundproofing ? <span className="ew-chip">kedap suara</span> : null}
-                    {r.has_observation_window ? <span className="ew-chip">observasi wali</span> : null}
-                    <span className="ew-chip ew-chip--live">{r.sterilization_status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Privasi */}
-      <section className="ew-section">
-        <div className="ew-wrap ew-grid-2" style={{ alignItems: 'center' }}>
-          <div>
-            <span className="ew-kicker">Pelindungan data pasien</span>
-            <h4 style={{ fontSize: 30, fontWeight: 900, lineHeight: 1.25 }}>
-              Rekam medis elektronik dengan <em style={{ fontStyle: 'normal', color: 'var(--ew-blush)' }}>izin eksplisit</em>
-            </h4>
-            <p style={{ marginTop: 16 }}>
+        <section className="up-section">
+          <div className="up-panel">
+            <span className="up-eyebrow">Pelindungan data pasien</span>
+            <h2 className="up-title">
+              Rekam medis elektronik dengan <em>izin eksplisit</em>
+            </h2>
+            <p className="up-sub" style={{ marginBottom: 0 }}>
               Data kesehatan anak adalah data pribadi spesifik. Kami meminta persetujuan
               eksplisit sebelum menyimpan, membatasi siapa yang boleh membaca, dan mencatat
               setiap akses dalam jejak audit.
             </p>
-            <ul className="ew-hero-list" style={{ marginTop: 18 }}>
+            <ul>
               <li>
-                <ShieldCheck size={16} /> Persetujuan UU PDP 27/2022 sebelum data disimpan
+                <ShieldCheck size={17} /> Persetujuan UU PDP 27/2022 sebelum data disimpan
               </li>
               <li>
-                <ShieldCheck size={16} /> Jejak audit setiap pembukaan rekam medis
+                <ShieldCheck size={17} /> Jejak audit setiap pembukaan rekam medis
               </li>
               <li>
-                <ShieldCheck size={16} /> Retensi dan pemusnahan sesuai Permenkes 24/2022
+                <ShieldCheck size={17} /> Retensi dan pemusnahan sesuai Permenkes 24/2022
               </li>
             </ul>
           </div>
-          <PrivacyFigure />
-        </div>
-      </section>
+        </section>
 
-      {/* Pertanyaan umum */}
-      <section className="ew-section ew-section--paper" id="tanya">
-        <div className="ew-wrap">
-          <div className="ew-heading">
-            <h6>Pertanyaan yang sering diajukan</h6>
-            <h4>
-              Hal yang <em>perlu</em> Anda tahu
-            </h4>
-          </div>
-
-          <div className="ew-grid-2">
-            {FAQ.map((f) => (
-              <div className="ew-card" key={f.q}>
-                <h3 style={{ fontSize: 17 }}>{f.q}</h3>
-                <p style={{ marginTop: 10 }}>{f.a}</p>
-              </div>
+        <section className="up-section" id="tanya">
+          <span className="up-eyebrow">Pertanyaan yang sering diajukan</span>
+          <h2 className="up-title">
+            Hal yang <em>perlu</em> Anda tahu
+          </h2>
+          <div className="up-faq">
+            {FAQ.map((f, i) => (
+              <details key={f.q} open={i === 0}>
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Ajakan terakhir */}
-      <section className="ew-cta">
-        <div className="ew-wrap">
-          <h3>Mulai dari percakapan, bukan dari diagnosis</h3>
-          <p>
+        <section className="up-section">
+          <span className="up-eyebrow">Langkah pertama</span>
+          <h2 className="up-title">
+            Mulai dari percakapan, bukan dari <em>diagnosis</em>
+          </h2>
+          <p className="up-sub">
             Ceritakan keluhan anak Anda. Kami bantu menentukan langkah pertama yang tepat.
+            Untuk kondisi darurat seperti sesak napas atau tersedak berat, hubungi layanan
+            gawat darurat terdekat.
           </p>
-          <div className="ew-hero-actions" style={{ justifyContent: 'center' }}>
-            <a href="#daftar" className="ew-btn ew-btn--white">
+          <div className="up-actions" style={{ marginBottom: 0 }}>
+            <a href="#daftar" className="up-btn up-btn--solid">
               <CalendarCheck size={16} /> Daftar sekarang
             </a>
-            <a href={`tel:${clinic.phone.replace(/\s/g, '')}`} className="ew-btn ew-btn--ghost">
+            <a href={`tel:${clinic.phone.replace(/\s/g, '')}`} className="up-btn up-btn--ghost">
               <Phone size={16} /> {clinic.phone}
             </a>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Kaki halaman */}
-      <footer className="ew-foot">
-        <div className="ew-wrap ew-foot-grid">
-          <div>
-            <span className="ew-logo-name">{clinic.name}</span>
-            <p style={{ marginTop: 10 }}>
+        <footer className="up-foot">
+          <div className="up-foot-col">
+            <h4>{clinic.name}</h4>
+            <address>
               {clinic.address}, {clinic.city}, {clinic.province}
-            </p>
-            <p style={{ marginTop: 6 }}>
-              <Phone size={14} /> {clinic.phone}
-            </p>
-            <p style={{ marginTop: 6 }}>
+              <br />
+              {clinic.phone}
+              <br />
               Penanggung jawab medis: {clinic.head_of_clinic_name}
+            </address>
+          </div>
+          <div className="up-foot-col">
+            <h4>Untuk pasien</h4>
+            <p>
+              <a href="#daftar">Janji periksa</a>
+              <br />
+              <a href="#daftar">Pendaftaran online</a>
+              <br />
+              <a href="#tarif">Tarif layanan</a>
+              <br />
+              <Link href="/portal-pasien">Portal pasien</Link>
             </p>
           </div>
-
-          <div>
-            <h6>Layanan</h6>
-            <ul>
-              {SERVICES.slice(0, 4).map((s) => (
-                <li key={s.title}>
-                  <a href="#layanan">{s.title}</a>
-                </li>
-              ))}
-            </ul>
+          <div className="up-foot-col">
+            <h4>Kepatuhan</h4>
+            <p>
+              Izin Dinkes {clinic.dinkes_license_number}
+              <br />
+              Fasyankes {clinic.fasyankes_code}
+              <br />
+              Akreditasi {clinic.accreditation_status}
+              <br />
+              Terhubung SATUSEHAT
+            </p>
           </div>
-
-          <div>
-            <h6>Untuk pasien</h6>
-            <ul>
-              <li>
-                <a href="#daftar">Janji periksa</a>
-              </li>
-              <li>
-                <a href="#daftar">Pendaftaran online</a>
-              </li>
-              <li>
-                <a href="#tarif">Tarif layanan</a>
-              </li>
-              <li>
-                <Link href="/portal-pasien">Portal pasien</Link>
-              </li>
-            </ul>
+          <div className="up-foot-legal">
+            (c) {new Date().getFullYear()} {clinic.name}. Seluruh hak dilindungi.
+            Bahasa desain diadaptasi dari TemplateMo 555 Upright. Foto: Unsplash,
+            digunakan sesuai lisensi Unsplash - bukan foto pasien klinik.
           </div>
-        </div>
-
-        <div className="ew-wrap ew-foot-bottom">
-          <span>
-            © {new Date().getFullYear()} {clinic.name}. Seluruh hak dilindungi.
-          </span>
-          <span>
-            Bahasa desain diadaptasi dari TemplateMo 573 EduWell · Foto pasien tidak
-            digunakan demi pelindungan data pribadi
-          </span>
-        </div>
-      </footer>
+        </footer>
+      </main>
     </div>
   );
 }
