@@ -249,18 +249,28 @@ jobs:
 
       - name: 9. Commit dan dorong
         run: |
-          set -euo pipefail
+          set +e
+          set -x
           git config user.name arena-agent
           git config user.email arena-agent@users.noreply.github.com
-
           git add -A -- . ':(exclude).github'
-
           if git diff --cached --quiet; then
             echo "tidak ada perubahan untuk di-commit"
             exit 0
           fi
-
-          git commit -m "feat(web): situs publik EduWell dengan ilustrasi, pisahkan dasbor ke halaman masuk"
+          git commit -m "feat(web): formulir permintaan layanan dan halaman masuk petugas"
+          for coba in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            echo "dorong ditolak, susun ulang di atas main terbaru"
+            git fetch origin main
+            git reset --soft origin/main
+            git add -A -- . ':(exclude).github'
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "feat(web): formulir permintaan layanan dan halaman masuk petugas"
+            sleep 3
+          done
+          echo "::error::gagal mendorong commit setelah tiga percobaan"
+          exit 1
 
           git pull --rebase --autostash origin main
           git push
