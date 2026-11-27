@@ -14,7 +14,20 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, Send, Sparkles, UserRound } from 'lucide-react';
-import { getBrowserSupabase } from '../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+
+/**
+ * Klien dibuat langsung, bukan lewat getBrowserSupabase(). Fungsi itu
+ * mengembalikan null bila variabel lingkungan tidak terbaca, sehingga asisten
+ * diam-diam mati di produksi. Kunci publishable memang untuk sisi publik.
+ */
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://fawmudsaaotlqyryciwd.supabase.co';
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  'sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc';
+
+const getClient = () => createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const AGENTS = [
   { key: 'AGEN_ANALIS', label: 'Analisa awal', short: 'AN' },
@@ -69,17 +82,7 @@ export function AiConsultAssistant() {
     setBusy(true);
 
     try {
-      const sb = getBrowserSupabase();
-      if (!sb) {
-        setTurns((t) => [
-          ...t,
-          {
-            role: 'assistant',
-            text: 'Layanan analisa sedang tidak dapat dijangkau. Silakan hubungi klinik melalui telepon.',
-          },
-        ]);
-        return;
-      }
+      const sb = getClient();
 
       const started = Date.now();
       const { data, error } = await sb.rpc('tw_ai_kb_search', {

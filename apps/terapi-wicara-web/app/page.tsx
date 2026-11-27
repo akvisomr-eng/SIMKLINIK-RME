@@ -14,8 +14,9 @@
  * basis data klinik yang sama, dan setiap permintaan masuk ke meja admisi
  * lewat RPC.
  *
- * Foto: Unsplash (lisensi Unsplash: gratis untuk komersial, tanpa atribusi
- * wajib). Tidak ada foto pasien klinik - semua gambar stok berlisensi.
+ * Foto: domain publik (CC0 1.0 / Public Domain Mark 1.0) dari Openverse,
+ * Wikimedia Commons, dan Flickr arsip pemerintah. Gratis untuk komersial,
+ * boleh diubah, tanpa kewajiban atribusi. Tidak ada foto pasien klinik.
  */
 
 import { useEffect, useState } from 'react';
@@ -24,6 +25,7 @@ import {
   ArrowRight,
   CalendarCheck,
   Clock,
+  Download,
   MapPin,
   MessageCircle,
   Phone,
@@ -31,25 +33,106 @@ import {
   Sparkles,
   Volume2,
 } from 'lucide-react';
-import { FALLBACK_SIMKLINIK_DATA, getBrowserSupabase } from '../src/lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { FALLBACK_SIMKLINIK_DATA } from '../src/lib/supabaseClient';
 import { CareRequestForms } from '../src/components/CareRequestForms';
+import { AiConsultAssistant } from '../src/components/AiConsultAssistant';
 import { ServiceGlyph } from '../src/components/siteIllustrations';
+
+/**
+ * Klien dibangun di sini, bukan lewat getBrowserSupabase(), karena fungsi itu
+ * mengembalikan null bila NEXT_PUBLIC_SUPABASE_URL tidak terpasang. Akibatnya
+ * halaman diam-diam memakai data cadangan dan menampilkan angka yang salah.
+ * Kunci publishable memang dirancang untuk dipakai di sisi publik.
+ */
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://fawmudsaaotlqyryciwd.supabase.co';
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  'sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc';
+
+const getClient = () => createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/** Snapshot portal publik: tarif, terapis, ruang, dan profil klinik. */
+async function ambilSnapshot(sb: ReturnType<typeof getClient>) {
+  return sb.rpc('tw_public_portal_snapshot', {
+    p_clinic_code: 'KLN-TW-KDR-01',
+  });
+}
 
 const formatRupiah = (v: number) => 'Rp' + (v ?? 0).toLocaleString('id-ID');
 
-/** Foto Unsplash: parameter w dan q mengecilkan berkas agar halaman ringan. */
-const U = (id: string, w: number) =>
-  'https://images.unsplash.com/' + id + '?auto=format&fit=crop&w=' + w + '&q=72';
+/**
+ * Foto domain publik untuk konteks klinik terapi wicara.
+ *
+ * Seluruh gambar diambil dari Openverse dengan lisensi CC0 1.0 atau Public
+ * Domain Mark 1.0: bebas dipakai untuk kepentingan komersial, boleh diubah,
+ * tanpa kewajiban atribusi. Kredit tetap ditulis di sini sebagai jejak
+ * asal-usul. Tidak ada satu pun foto pasien klinik - semua stok berlisensi.
+ *
+ * Sumber (semua CC0 / PDM):
+ *  - Terapi wicara & asesmen: South Australian History Network, State
+ *    Government Photographer.
+ *  - Ruang audiologi: NavyMedicine.
+ *  - Terapi okupasi tangan: NavyMedicine.
+ *  - Pemeriksaan anak: U.S. Embassy Jakarta.
+ *  - Belajar membaca anak: NIH.
+ *  - Ruang tunggu klinik: Ian Livesey.
+ */
+const IMG_HERO_1 =
+  'https://live.staticflickr.com/5481/14042890298_49f3b4d48a_b.jpg';
+const IMG_HERO_2 =
+  'https://live.staticflickr.com/65535/51629691390_fb465ea8b1_b.jpg';
+const IMG_HERO_3 =
+  'https://live.staticflickr.com/6032/6345718703_8e57906fc1_b.jpg';
+const IMG_ASESSMEN =
+  'https://upload.wikimedia.org/wikipedia/commons/b/b9/Student_doing_speech_therapy%28GN08932%29.jpg';
+const IMG_TERAPI =
+  'https://live.staticflickr.com/65535/52033349927_69e5145c42_b.jpg';
+const IMG_ANAK =
+  'https://live.staticflickr.com/65535/48997124487_6bb756f3f9_b.jpg';
+const IMG_TANGAN =
+  'https://upload.wikimedia.org/wikipedia/commons/8/88/Game_speaks_Revolutionizing_speech_therapy_through_interactive_gaming.jpg';
+const IMG_DEWASA = IMG_TERAPI;
+const IMG_RUANG =
+  'https://live.staticflickr.com/65535/33789221398_63e87748af_b.jpg';
 
-const IMG_HERO_1 = U('photo-1758598737516-ffd38ba74838', 520);
-const IMG_HERO_2 = U('photo-1771765767087-ce71e4a7916a', 520);
-const IMG_HERO_3 = U('photo-1758598737505-90a3084105ac', 520);
-const IMG_ASESSMEN = U('photo-1758598737516-ffd38ba74838', 1200);
-const IMG_TERAPI = U('photo-1771765767087-ce71e4a7916a', 900);
-const IMG_ANAK = U('photo-1786292949404-084cbd10c7b1', 900);
-const IMG_TANGAN = U('photo-1728138240695-54ebc33215f2', 900);
-const IMG_DEWASA = U('photo-1758273240373-370993d0275d', 900);
-const IMG_RUANG = U('photo-1728138127500-fb73c1313f76', 900);
+/**
+ * Gambar kolom tengah per fase bacaan. TemplateMo Upright mengganti gambar
+ * mengikuti seksi yang sedang dilihat; di sini tiap fase punya tiga foto yang
+ * relevan dengan bagian isinya, bukan hiasan yang berulang.
+ */
+const FIGUR: Array<Array<{ img: string; caption: string }>> = [
+  [
+    { img: IMG_HERO_1, caption: 'Sesi terapi wicara tatap muka' },
+    { img: IMG_HERO_2, caption: 'Pemeriksaan pendengaran anak' },
+    { img: IMG_HERO_3, caption: 'Pendampingan orang tua di setiap sesi' },
+  ],
+  [
+    { img: IMG_TERAPI, caption: 'Latihan motorik halus di ruang terapi' },
+    { img: IMG_ANAK, caption: 'Latihan membaca dan mengenal kata' },
+    { img: IMG_RUANG, caption: 'Ruang tunggu keluarga' },
+  ],
+  [
+    { img: IMG_ASESSMEN, caption: 'Asesmen bahasa dan artikulasi' },
+    { img: IMG_TANGAN, caption: 'Stimulasi oromotor lewat permainan' },
+    { img: IMG_HERO_1, caption: 'Terapis ber-SIP mendampingi tiap sesi' },
+  ],
+];
+
+/** Seksi bertanda jangkar dan fase gambar yang dipakai saat seksi itu dibaca. */
+const FASE_JANGKAR: Array<[string, number]> = [
+  ['layanan', 0],
+  ['alur', 0],
+  ['galeri', 0],
+  ['tarif', 1],
+  ['daftar', 1],
+  ['konsultasi', 1],
+  ['aplikasi', 2],
+  ['tim', 2],
+  ['tanya', 2],
+  ['kontak', 2],
+];
 
 const SERVICES = [
   {
@@ -147,38 +230,85 @@ const FAQ = [
 
 const NAV = [
   { href: '#layanan', label: 'Layanan', Icon: Sparkles },
-  { href: '#alur', label: 'Alur pasien', Icon: ArrowRight },
+  { href: '#tim', label: 'Dokter & terapis', Icon: ShieldCheck },
+  { href: '#tarif', label: 'Tarif layanan', Icon: Clock },
   { href: '#galeri', label: 'Ruang terapi', Icon: MapPin },
-  { href: '#tarif', label: 'Tarif', Icon: Clock },
-  { href: '#daftar', label: 'Daftar online', Icon: CalendarCheck },
-  { href: '#tim', label: 'Terapis', Icon: ShieldCheck },
-  { href: '#tanya', label: 'Pertanyaan', Icon: MessageCircle },
+  { href: '#alur', label: 'Alur pendaftaran', Icon: CalendarCheck },
+  { href: '#konsultasi', label: 'Konsultasi online', Icon: MessageCircle },
+  { href: '#aplikasi', label: 'Aplikasi petugas', Icon: Download },
+  { href: '#tanya', label: 'Tanya jawab', Icon: Volume2 },
+  { href: '#kontak', label: 'Kontak & lokasi', Icon: Phone },
+  { href: '/portal-pasien', label: 'Portal pasien', Icon: ShieldCheck },
 ];
 
 export default function PublicClinicWebsitePage() {
   const [clinic, setClinic] = useState(FALLBACK_SIMKLINIK_DATA.clinic);
-  const [therapists, setTherapists] = useState(FALLBACK_SIMKLINIK_DATA.therapists);
-  const [rooms, setRooms] = useState(FALLBACK_SIMKLINIK_DATA.rooms);
-  const [tariffs, setTariffs] = useState(FALLBACK_SIMKLINIK_DATA.tariffs);
+  // Daftar dimulai kosong, bukan dari data contoh. Data contoh klinik ini hanya
+  // memuat 2 terapis dan 2 ruang, sedangkan basis data memuat 4 dan 3. Memakai
+  // cadangan berarti menampilkan angka yang salah, jadi daftar dibiarkan kosong
+  // sampai RPC benar-benar menjawab.
+  const [therapists, setTherapists] = useState<typeof FALLBACK_SIMKLINIK_DATA.therapists>(
+    [],
+  );
+  const [rooms, setRooms] = useState<typeof FALLBACK_SIMKLINIK_DATA.rooms>([]);
+  const [tariffs, setTariffs] = useState<typeof FALLBACK_SIMKLINIK_DATA.tariffs>([]);
+  // Selama false, REST snapshot belum benar-benar terbaca. Angka dan direktori
+  // ditahan supaya data contoh tidak pernah tampil sebagai fakta klinik.
+  const [live, setLive] = useState(false);
+  // Fase bacaan mengikuti seksi yang sedang terlihat, supaya kolom gambar ikut
+  // berganti seperti perilaku Upright. Nilainya 0..2 sesuai panjang FIGUR.
+  const [fase, setFase] = useState(0);
 
   useEffect(() => {
-    const sb = getBrowserSupabase();
-    if (!sb) return;
+    const sb = getClient();
     (async () => {
       try {
-        const { data, error } = await sb.rpc('tw_public_portal_snapshot', {
-          p_clinic_code: 'KLN-TW-KDR-01',
-        });
+        const { data, error } = await ambilSnapshot(sb);
         if (!error && data) {
           if (data.clinic) setClinic(data.clinic);
           if (data.therapists) setTherapists(data.therapists);
           if (data.rooms) setRooms(data.rooms);
           if (data.tariffs) setTariffs(data.tariffs);
+          setLive(true);
+        } else {
+          // RPC menjawab dengan galat. Angka ditahan pada tanda hubung dan daftar
+          // tetap kosong; data contoh tidak pernah dipakai sebagai fakta klinik.
+          console.warn('[portal] snapshot gagal:', error?.message ?? 'data kosong');
+          setLive(true);
         }
       } catch {
-        // Data contoh sudah terpasang; halaman tetap terbaca.
+        // RPC gagal total: halaman tetap terbaca, tetapi tanpa angka karangan.
+        setLive(true);
       }
     })();
+  }, []);
+
+  // Ganti fase gambar saat seksi berikutnya masuk ke tengah layar.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const peta = new Map<string, number>(FASE_JANGKAR);
+    const dilihat = new Set<string>();
+    const pengamat = new IntersectionObserver(
+      (entri) => {
+        entri.forEach((e) => {
+          const id = e.target.id;
+          if (!peta.has(id)) return;
+          if (e.isIntersecting) dilihat.add(id);
+          else dilihat.delete(id);
+        });
+        let faseBaru = 0;
+        dilihat.forEach((id) => {
+          faseBaru = Math.max(faseBaru, peta.get(id) ?? 0);
+        });
+        setFase(faseBaru);
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 },
+    );
+    FASE_JANGKAR.forEach(([id]) => {
+      const el = document.getElementById(id);
+      if (el) pengamat.observe(el);
+    });
+    return () => pengamat.disconnect();
   }, []);
 
   const activeTherapists = therapists.filter((t) => t.is_active);
@@ -203,12 +333,6 @@ export default function PublicClinicWebsitePage() {
               </a>
             </li>
           ))}
-          <li>
-            <Link className="up-nav-link" href="/portal-pasien">
-              <ShieldCheck size={16} />
-              Portal pasien
-            </Link>
-          </li>
         </ul>
 
         <div className="up-side-foot">
@@ -225,18 +349,12 @@ export default function PublicClinicWebsitePage() {
       </aside>
 
       <div className="up-figure-col" aria-hidden="true">
-        <figure className="up-figure">
-          <img src={IMG_HERO_1} alt="" loading="eager" />
-          <figcaption>Sesi terapi tatap muka bersama terapis wicara</figcaption>
-        </figure>
-        <figure className="up-figure">
-          <img src={IMG_HERO_2} alt="" loading="lazy" />
-          <figcaption>Latihan artikulasi dan bahasa anak</figcaption>
-        </figure>
-        <figure className="up-figure">
-          <img src={IMG_HERO_3} alt="" loading="lazy" />
-          <figcaption>Pendampingan orang tua di setiap sesi</figcaption>
-        </figure>
+        {FIGUR[fase].map((f, i) => (
+          <figure className="up-figure" key={f.caption}>
+            <img src={f.img} alt="" loading={i === 0 ? 'eager' : 'lazy'} />
+            <figcaption>{f.caption}</figcaption>
+          </figure>
+        ))}
       </div>
 
       <main className="up-main">
@@ -260,15 +378,15 @@ export default function PublicClinicWebsitePage() {
           </div>
           <div className="up-stats">
             <div className="up-stat">
-              <b>{activeTherapists.length}</b>
+              <b>{live ? activeTherapists.length : '-'}</b>
               <span>terapis ber-SIP aktif</span>
             </div>
             <div className="up-stat">
-              <b>{rooms.length}</b>
+              <b>{live ? rooms.length : '-'}</b>
               <span>ruang terapi kedap suara</span>
             </div>
             <div className="up-stat">
-              <b>{tariffs.length}</b>
+              <b>{live ? tariffs.length : '-'}</b>
               <span>layanan bertarif resmi</span>
             </div>
           </div>
@@ -357,6 +475,13 @@ export default function PublicClinicWebsitePage() {
             halaman ini ikut berubah.
           </p>
           <div className="up-price-list">
+            {tariffs.length === 0 ? (
+              <p className="up-sub" style={{ marginBottom: 0 }}>
+                {live
+                  ? 'Master tarif belum dapat dibaca dari basis data klinik. Silakan hubungi admisi untuk tarif terbaru.'
+                  : 'Memuat tarif resmi dari master tarif klinik...'}
+              </p>
+            ) : null}
             {tariffs.slice(0, 6).map((t) => (
               <div className="up-price" key={t.id}>
                 <span className="up-price-name">{t.service_name}</span>
@@ -383,6 +508,63 @@ export default function PublicClinicWebsitePage() {
           <CareRequestForms clinicPhone={clinic.phone} />
         </section>
 
+        <section className="up-section" id="konsultasi">
+          <span className="up-eyebrow">Konsultasi online</span>
+          <h2 className="up-title">
+            Tanya dulu, <em>periksa</em> kemudian
+          </h2>
+          <p className="up-sub">
+            Asisten multi-agen klinik membantu menyusun ringkasan keluhan dan menunjukkan
+            bahan bacaan yang relevan sebelum Anda datang. Jawabannya bersifat analisa
+            sementara, tidak menyimpan diagnosis, dan bukan keputusan klinis. Keputusan
+            tetap di tangan dokter atau terapis setelah asesmen langsung.
+          </p>
+          <AiConsultAssistant />
+        </section>
+
+        <section className="up-section" id="aplikasi">
+          <span className="up-eyebrow">Aplikasi pendamping</span>
+          <h2 className="up-title">
+            SIMKLINIK di <em>ponsel</em> terapis
+          </h2>
+          <p className="up-sub">
+            Aplikasi Android untuk terapis dan petugas: agenda sesi, asesmen lima area,
+            catatan SOAP, dan sinkronisasi ke rekam medis elektronik klinik. Dipakai
+            dengan akun petugas, bukan untuk pasien.
+          </p>
+          <div className="up-card" style={{ maxWidth: 620 }}>
+            <h3>WicaraSehat Terapis 1.0.0</h3>
+            <span className="up-card-code">id.wicarasehat.terapis.rme - Android 8.0+</span>
+            <p>
+              Berkas APK ditandatangani untuk pemasangan langsung. Ponsel akan meminta izin
+              memasang aplikasi dari luar Play Store - itu wajar untuk distribusi internal
+              klinik. Berkas AAB disediakan bila aplikasi hendak diunggah ke Play Console.
+            </p>
+            <div className="up-actions" style={{ marginBottom: 0, marginTop: 18 }}>
+              <a
+                className="up-btn up-btn--solid"
+                href="https://github.com/akvisomr-eng/RUNDINGAN-KREASI-MEDIA/releases/download/android-v1.0.0-6/WicaraSehat-Terapis-v1.0.0.apk"
+              >
+                <Download size={16} /> Unduh APK
+              </a>
+              <a
+                className="up-btn up-btn--ghost"
+                href="https://github.com/akvisomr-eng/RUNDINGAN-KREASI-MEDIA/releases/download/android-v1.0.0-6/WicaraSehat-Terapis-v1.0.0.aab"
+              >
+                Berkas AAB
+              </a>
+              <a
+                className="up-btn up-btn--ghost"
+                href="https://github.com/akvisomr-eng/RUNDINGAN-KREASI-MEDIA/releases"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Semua versi
+              </a>
+            </div>
+          </div>
+        </section>
+
         <section className="up-section" id="tim">
           <span className="up-eyebrow">Direktori terapis</span>
           <h2 className="up-title">
@@ -393,6 +575,13 @@ export default function PublicClinicWebsitePage() {
             di Dinas Kesehatan Kota Kediri.
           </p>
           <div className="up-people">
+            {activeTherapists.length === 0 ? (
+              <p className="up-sub" style={{ marginBottom: 0 }}>
+                {live
+                  ? 'Direktori terapis belum dapat dibaca. Silakan hubungi klinik untuk informasi terapis yang bertugas.'
+                  : 'Memuat direktori terapis dari basis data klinik...'}
+              </p>
+            ) : null}
             {activeTherapists.map((t) => (
               <div className="up-person" key={t.id}>
                 <span className="up-avatar">{t.full_name.slice(0, 1)}</span>
@@ -418,6 +607,13 @@ export default function PublicClinicWebsitePage() {
             Tiga ruang <em>kedap suara</em>
           </h2>
           <div className="up-grid">
+            {rooms.length === 0 ? (
+              <p className="up-sub" style={{ marginBottom: 0 }}>
+                {live
+                  ? 'Data ruang terapi belum dapat dibaca dari basis data klinik.'
+                  : 'Memuat data ruang terapi...'}
+              </p>
+            ) : null}
             {rooms.map((r) => (
               <article className="up-card" key={r.id}>
                 <span className="up-card-ico">
@@ -478,7 +674,7 @@ export default function PublicClinicWebsitePage() {
           </div>
         </section>
 
-        <section className="up-section">
+        <section className="up-section" id="kontak">
           <span className="up-eyebrow">Langkah pertama</span>
           <h2 className="up-title">
             Mulai dari percakapan, bukan dari <em>diagnosis</em>
@@ -535,8 +731,8 @@ export default function PublicClinicWebsitePage() {
           </div>
           <div className="up-foot-legal">
             (c) {new Date().getFullYear()} {clinic.name}. Seluruh hak dilindungi.
-            Bahasa desain diadaptasi dari TemplateMo 555 Upright. Foto: Unsplash,
-            digunakan sesuai lisensi Unsplash - bukan foto pasien klinik.
+            Bahasa desain diadaptasi dari TemplateMo 555 Upright. Foto berlisensi
+            domain publik (CC0 1.0 / Public Domain Mark 1.0) - bukan foto pasien klinik.
           </div>
         </footer>
       </main>

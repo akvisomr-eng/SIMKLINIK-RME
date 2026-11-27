@@ -2,20 +2,43 @@
 'use client';
 
 /**
- * Tiga pintu masuk layanan, satu basis data:
- *  1. JANJI_PERIKSA      - pasien lama memilih slot dan terapis.
- *  2. PENDAFTARAN_ONLINE - pasien baru mendaftar, menerima nomor rekam medis.
- *  3. KONSULTASI_ONLINE  - tanya-jawab pra-kunjungan dengan asisten analisa.
+ * Tiga pintu masuk layanan, satu basis data.
  *
- * Semua tulisan masuk lewat RPC server: tw_public_submit_consultation,
- * tw_public_slot_availability, tw_public_submit_booking.
- * Tidak ada kode booking karangan di sisi peramban.
+ *  1. JANJI_PERIKSA      -> tw_public_submit_consultation -> care_consultation_requests
+ *  2. PENDAFTARAN_ONLINE -> tw_public_submit_booking      -> online_booking_requests
+ *  3. KONSULTASI_ONLINE  -> tw_public_submit_consultation -> care_consultation_requests
+ *
+ * Kenapa pendaftaran punya RPC sendiri: tw_public_submit_consultation hanya
+ * menerima request_kind 'JANJI_PERIKSA' atau 'KONSULTASI_ONLINE' dan menolak
+ * selainnya dengan "Jenis permintaan tidak dikenal". Dulu ketiga tab dikirim ke
+ * RPC yang sama, sehingga tab Pendaftaran online selalu gagal di produksi.
+ * RPC booking menaruh permintaan pada antrean MENUNGGU_VERIFIKASI_ADMISI,
+ * yaitu antrean yang dibaca tombol setujui di modul admisi.
+ *
+ * Jam tersedia dibaca dari tw_public_slot_availability per tanggal, bukan
+ * daftar tetap di peramban, supaya jam yang sudah penuh tidak ditawarkan.
  */
 
-import React, { useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardList, MessageCircle, Video } from 'lucide-react';
-import { getBrowserSupabase } from '../lib/supabaseClient';
-import { AiConsultAssistant } from './AiConsultAssistant';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  CalendarCheck,
+  ClipboardList,
+  MessageCircle,
+  Phone,
+  Search,
+  ShieldAlert,
+  Store,
+  Video,
+} from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://fawmudsaaotlqyryciwd.supabase.co';
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  'sb_publishable_wRGUQNJKi5XUjMXHFpDxVw_hPAPyhUc';
+
+const getClient = () => createClient(SUPABASE_URL, SUPABASE_KEY);
 
 type Mode = 'JANJI' | 'DAFTAR' | 'KONSULTASI';
 
@@ -25,6 +48,13 @@ interface SlotInfo {
   booked: number;
   pending: number;
   sisa: number;
+}
+
+interface Hasil {
+  code: string;
+  codeLabel: string;
+  level: string | null;
+  antrean: string;
 }
 
 const ONSET_OPTIONS = [
@@ -51,9 +81,51 @@ const PROMPT_TAGS = [
   { v: 'NON_URGENT', l: 'Tidak ada tanda darurat' },
 ];
 
+const MODES: Array<{
+  id: Mode;
+  label: string;
+  Icon: typeof CalendarCheck;
+  ringkas: string;
+  bukti: string;
+}> = [
+  {
+    id: 'JANJI',
+    label: 'Janji periksa',
+    Icon: CalendarCheck,
+    ringkas: 'Sudah pernah diperiksa dan ingin menjadwalkan sesi berikutnya.',
+    bukti: 'Kode janji JNJ- di antrean admisi',
+  },
+  {
+    id: 'DAFTAR',
+    label: 'Pendaftaran online',
+    Icon: ClipboardList,
+    ringkas: 'Pasien baru. Data masuk sebagai pendaftaran untuk dibuatkan nomor rekam medis.',
+    bukti: 'Kode pendaftaran BOOK-TW- di antrean admisi',
+  },
+  {
+    id: 'KONSULTASI',
+    label: 'Konsultasi online',
+    Icon: Video,
+    ringkas: 'Masih ragu. Ajukan pertanyaan dulu, tanpa memilih jam kunjungan.',
+    bukti: 'Kode konsultasi KON- untuk menghubungi terapis',
+  },
+];
+
+const ARTI_STATUS: Record<string, string> = {
+  BARU: 'Permintaan diterima dan belum ditangani.',
+  BARU_MASUK: 'Permintaan diterima dan belum ditangani.',
+  MENUNGGU_VERIFIKASI_ADMISI:
+    'Menunggu verifikasi admisi. Petugas menghubungi nomor wali untuk konfirmasi data dan jam.',
+  TERKONFIRMASI_JADWAL:
+    'Jadwal sudah dikonfirmasi. Silakan datang sesuai hari dan jam yang disepakati.',
+  TERJADWAL: 'Jadwal sudah ditetapkan oleh petugas.',
+  DIBATALKAN: 'Permintaan dibatalkan. Hubungi admisi bila ingin menjadwalkan ulang.',
+  SELESAI: 'Permintaan selesai ditangani.',
+};
+
 /**
- * Triage lokal — aturan sederhana yang hasilnya selalu bisa ditinjau petugas.
- * Bukan diagnosis; hanya penanda prioritas antrean.
+ * Triage lokal: aturan sederhana, hasilnya selalu bisa ditinjau petugas.
+ * Bukan diagnosis, hanya penanda prioritas antrean.
  */
 function triage(flags: string[]): { level: 'RENDAH' | 'SEDANG' | 'TINGGI'; summary: string } {
   const urgent = flags.filter((f) => f.startsWith('RED_FLAG_'));
@@ -76,11 +148,16 @@ function triage(flags: string[]): { level: 'RENDAH' | 'SEDANG' | 'TINGGI'; summa
   return { level: 'RENDAH', summary: 'Tidak ada tanda darurat yang dilaporkan.' };
 }
 
-const MODES: Array<{ id: Mode; label: string; Icon: typeof CalendarCheck }> = [
-  { id: 'JANJI', label: 'Janji periksa', Icon: CalendarCheck },
-  { id: 'DAFTAR', label: 'Pendaftaran online', Icon: ClipboardList },
-  { id: 'KONSULTASI', label: 'Konsultasi online', Icon: Video },
-];
+function labelSlot(slot: string): string {
+  const jam = parseInt(slot, 10);
+  return slot + ' - ' + String(jam + 1).padStart(2, '0') + ':00 WIB';
+}
+
+function tanggalLokal(offsetHari: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetHari);
+  return d.toISOString().slice(0, 10);
+}
 
 export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
   const [mode, setMode] = useState<Mode>('JANJI');
@@ -100,40 +177,55 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
   const [consent, setConsent] = useState(false);
 
   const [slots, setSlots] = useState<SlotInfo[]>([]);
-  const [slotLoading, setSlotLoading] = useState(false);
+  const [slotLoading, setSlotLoading] = useState(true);
+  const [slotError, setSlotError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ code: string; codeLabel: string; level: string } | null>(
-    null
-  );
+  const [hasil, setHasil] = useState<Hasil | null>(null);
+
+  const modeAktif = MODES.find((m) => m.id === mode) ?? MODES[0];
+  const butuhSlot = mode !== 'KONSULTASI';
+  const tanggalMin = useMemo(() => tanggalLokal(1), []);
+  const tanggalMaks = useMemo(() => tanggalLokal(30), []);
+  const adaDarurat = flags.some((f) => f.startsWith('RED_FLAG_'));
+  const sisaTotal = slots.reduce((n, s) => n + Math.max(s.sisa, 0), 0);
 
   useEffect(() => {
-    setPreferredDate(new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10));
+    setPreferredDate(tanggalLokal(2));
   }, []);
 
   useEffect(() => {
     if (!preferredDate) return;
-    const sb = getBrowserSupabase();
-    if (!sb) return;
-    let alive = true;
+    const sb = getClient();
+    let hidup = true;
     setSlotLoading(true);
+    setSlotError(null);
+    setPreferredSlot('');
     (async () => {
       try {
-        const { data, error } = await sb.rpc('tw_public_slot_availability', {
+        const { data, error: rpcError } = await sb.rpc('tw_public_slot_availability', {
           p_date: preferredDate,
         });
-        if (!alive) return;
-        if (error) {
+        if (!hidup) return;
+        if (rpcError) {
           setSlots([]);
+          setSlotError(rpcError.message);
         } else {
-          setSlots((data?.slots ?? []) as SlotInfo[]);
+          const daftar = ((data as { slots?: SlotInfo[] } | null)?.slots ?? []) as SlotInfo[];
+          setSlots(daftar);
+          if (daftar.length === 0) setSlotError('Tidak ada jam yang dibuka pada tanggal ini.');
+        }
+      } catch (err) {
+        if (hidup) {
+          setSlots([]);
+          setSlotError(err instanceof Error ? err.message : 'Jaringan tidak menjawab.');
         }
       } finally {
-        if (alive) setSlotLoading(false);
+        if (hidup) setSlotLoading(false);
       }
     })();
     return () => {
-      alive = false;
+      hidup = false;
     };
   }, [preferredDate]);
 
@@ -152,21 +244,35 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
     setConsent(false);
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const pilihMode = (m: Mode) => {
+    setMode(m);
+    setHasil(null);
+    setError(null);
+  };
+
+  const kirim = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setResult(null);
+    setHasil(null);
 
-    if (!patientName.trim() || !guardianName.trim() || !guardianPhone.trim()) {
-      setError('Nama pasien, nama wali, dan nomor HP wajib diisi.');
+    if (mode === 'DAFTAR' && !birthDate) {
+      setError('Tanggal lahir diperlukan untuk membuat nomor rekam medis.');
       return;
     }
-    if (!birthDate) {
+    if (!patientName.trim() || !guardianName.trim() || !guardianPhone.trim()) {
+      setError('Nama pasien, nama wali, dan nomor HP wali wajib diisi.');
+      return;
+    }
+    if (!/^[0-9+()\-\s]{8,20}$/.test(guardianPhone.trim())) {
+      setError('Nomor HP wali belum berbentuk nomor yang bisa dihubungi.');
+      return;
+    }
+    if (mode !== 'KONSULTASI' && !birthDate) {
       setError('Tanggal lahir diperlukan untuk verifikasi identitas.');
       return;
     }
-    if (mode !== 'KONSULTASI' && !preferredSlot) {
-      setError('Silakan pilih salah satu jam kunjungan yang masih tersedia.');
+    if (butuhSlot && !preferredSlot) {
+      setError('Silakan pilih salah satu jam yang masih tersedia pada tanggal itu.');
       return;
     }
     if (mode === 'KONSULTASI' && !complaint.trim()) {
@@ -179,47 +285,76 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
     }
 
     const t = triage(flags);
-    const sb = getBrowserSupabase();
-    if (!sb) {
-      setError('Koneksi ke server klinik tidak tersedia. Silakan hubungi ' + clinicPhone + '.');
-      return;
-    }
+    const keluhan =
+      (mrn.trim() && mode === 'JANJI' ? 'No. RM ' + mrn.trim() + '. ' : '') +
+      (complaint.trim() || 'Permintaan ' + modeAktif.label.toLowerCase());
 
     setBusy(true);
     try {
-      const { data, error } = await sb.rpc('tw_public_submit_consultation', {
+      const sb = getClient();
+
+      if (mode === 'DAFTAR') {
+        const { data, error: rpcError } = await sb.rpc('tw_public_submit_booking', {
+          p_payload: {
+            patient_full_name: patientName.trim(),
+            birth_date: birthDate,
+            gender,
+            guardian_name: guardianName.trim(),
+            guardian_phone: guardianPhone.trim(),
+            requested_date: preferredDate,
+            requested_slot: labelSlot(preferredSlot),
+            service_type: 'ASESMEN_AWAL',
+            disorder_concern: focus,
+            chief_complaint: keluhan,
+            screening_red_flags_count: flags.filter((f) => f.startsWith('RED_FLAG_')).length,
+            pdp_explicit_consent: true,
+          },
+        });
+        if (rpcError) {
+          setError('Pendaftaran gagal disimpan: ' + rpcError.message);
+          return;
+        }
+        const kode = (data as { booking_code?: string } | null)?.booking_code ?? '-';
+        setHasil({
+          code: kode,
+          codeLabel: 'Kode pendaftaran',
+          level: null,
+          antrean: 'Menunggu verifikasi admisi',
+        });
+        reset();
+        return;
+      }
+
+      const { data, error: rpcError } = await sb.rpc('tw_public_submit_consultation', {
         p_payload: {
           request_kind: mode === 'JANJI' ? 'JANJI_PERIKSA' : 'KONSULTASI_ONLINE',
           patient_full_name: patientName.trim(),
-          birth_date: birthDate,
+          birth_date: birthDate || null,
           gender,
           guardian_name: guardianName.trim(),
           guardian_phone: guardianPhone.trim(),
-          chief_complaint:
-            (mrn.trim() ? 'No. RM ' + mrn.trim() + '. ' : '') +
-            (complaint.trim() || 'Permintaan ' + (mode === 'JANJI' ? 'janji periksa' : 'pendaftaran')),
+          chief_complaint: keluhan,
           duration_onset: onset,
           service_type: mode === 'KONSULTASI' ? 'KONSULTASI_ONLINE' : 'ASESMEN_AWAL',
-          preferred_date: preferredDate,
-          preferred_slot: preferredSlot || null,
+          preferred_date: preferredDate || null,
+          preferred_slot: preferredSlot ? labelSlot(preferredSlot) : null,
           triage_level: t.level,
           triage_summary: t.summary,
-          triage_flags: JSON.stringify(flags),
+          triage_flags: flags,
           triage_engine: 'ATURAN_KLINIS_V1',
           disorder_concern: focus,
           pdp_explicit_consent: true,
         },
       });
-
-      if (error) {
-        setError('Permintaan gagal disimpan: ' + error.message);
+      if (rpcError) {
+        setError('Permintaan gagal disimpan: ' + rpcError.message);
         return;
       }
-
-      setResult({
-        code: data?.request_code ?? '-',
-        codeLabel: mode === 'JANJI' ? 'Kode janji periksa' : 'Kode permintaan',
-        level: data?.triage_level ?? t.level,
+      setHasil({
+        code: (data as { request_code?: string } | null)?.request_code ?? '-',
+        codeLabel: mode === 'JANJI' ? 'Kode janji periksa' : 'Kode konsultasi',
+        level: (data as { triage_level?: string } | null)?.triage_level ?? t.level,
+        antrean: mode === 'JANJI' ? 'Antrean admisi' : 'Antrean konsultasi terapis',
       });
       reset();
     } catch (err) {
@@ -230,26 +365,38 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
   };
 
   return (
-    <div className="ew-grid-2" style={{ alignItems: 'start', gap: 28 }}>
-      <div>
-        <div className="ew-tabs" style={{ marginBottom: 20 }}>
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className={'ew-tab' + (mode === m.id ? ' is-active' : '')}
-              onClick={() => {
-                setMode(m.id);
-                setResult(null);
-                setError(null);
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+    <div className="ew-req">
+      <div className="ew-req-modes">
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => pilihMode(m.id)}
+            className={'ew-req-mode' + (mode === m.id ? ' is-active' : '')}
+            aria-pressed={mode === m.id}
+          >
+            <span className="ew-req-mode-ico">
+              <m.Icon size={17} />
+            </span>
+            <span>
+              <b>{m.label}</b>
+              <small>{m.ringkas}</small>
+            </span>
+          </button>
+        ))}
+      </div>
 
-        <form className="ew-card" onSubmit={submit}>
+      <div className="ew-req-grid">
+        <form className="ew-card ew-req-card" onSubmit={kirim} noValidate>
+          <header className="ew-req-head">
+            <span className="ew-req-kicker">{modeAktif.label}</span>
+            <h3>Data pasien dan wali</h3>
+            <p>
+              Yang mengisi formulir adalah wali atau pendamping. Kolom bertanda bintang wajib
+              diisi.
+            </p>
+          </header>
+
           {mode === 'JANJI' && (
             <div className="ew-field">
               <label htmlFor="mrn">Nomor rekam medis (bila sudah terdaftar)</label>
@@ -258,49 +405,71 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
                 value={mrn}
                 onChange={(e) => setMrn(e.target.value)}
                 placeholder="RM-TW-2026-0041"
+                autoComplete="off"
               />
             </div>
           )}
 
-          <div className="ew-grid-2" style={{ gap: 12 }}>
+          <div className="ew-req-dua">
             <div className="ew-field">
-              <label htmlFor="pn">Nama lengkap pasien</label>
-              <input id="pn" value={patientName} onChange={(e) => setPatientName(e.target.value)} />
+              <label htmlFor="pn">Nama lengkap pasien *</label>
+              <input
+                id="pn"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                autoComplete="name"
+              />
             </div>
             <div className="ew-field">
-              <label htmlFor="bd">Tanggal lahir</label>
-              <input id="bd" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+              <label htmlFor="bd">Tanggal lahir *</label>
+              <input
+                id="bd"
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                max={tanggalLokal(0)}
+              />
             </div>
           </div>
 
-          <div className="ew-grid-2" style={{ gap: 12 }}>
+          <div className="ew-req-dua">
             <div className="ew-field">
-              <label htmlFor="gn">Nama wali</label>
-              <input id="gn" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
+              <label htmlFor="gd">Jenis kelamin</label>
+              <select
+                id="gd"
+                value={gender}
+                onChange={(e) => setGender(e.target.value as 'L' | 'P')}
+              >
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+              </select>
             </div>
             <div className="ew-field">
-              <label htmlFor="gp">Nomor HP wali</label>
+              <label htmlFor="gp">Nomor HP wali (WhatsApp) *</label>
               <input
                 id="gp"
                 value={guardianPhone}
                 onChange={(e) => setGuardianPhone(e.target.value)}
                 inputMode="tel"
+                autoComplete="tel"
                 placeholder="08xxxxxxxxxx"
               />
             </div>
           </div>
 
           <div className="ew-field">
-            <label htmlFor="gd">Jenis kelamin</label>
-            <select id="gd" value={gender} onChange={(e) => setGender(e.target.value as 'L' | 'P')}>
-              <option value="L">Laki-laki</option>
-              <option value="P">Perempuan</option>
-            </select>
+            <label htmlFor="gn">Nama wali *</label>
+            <input
+              id="gn"
+              value={guardianName}
+              onChange={(e) => setGuardianName(e.target.value)}
+              autoComplete="name"
+            />
           </div>
 
           <div className="ew-field">
-            <label>Perhatian utama</label>
-            <select value={focus} onChange={(e) => setFocus(e.target.value)}>
+            <label htmlFor="fc">Perhatian utama</label>
+            <select id="fc" value={focus} onChange={(e) => setFocus(e.target.value)}>
               {FOCUS_OPTIONS.map((o) => (
                 <option key={o.v} value={o.v}>
                   {o.l}
@@ -311,7 +480,7 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
 
           <div className="ew-field">
             <label htmlFor="cc">
-              {mode === 'KONSULTASI' ? 'Pertanyaan / keluhan' : 'Keluhan utama (opsional)'}
+              {mode === 'KONSULTASI' ? 'Pertanyaan atau keluhan *' : 'Keluhan utama (opsional)'}
             </label>
             <textarea
               id="cc"
@@ -323,8 +492,8 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
           </div>
 
           <div className="ew-field">
-            <label>Sudah berlangsung sejak</label>
-            <select value={onset} onChange={(e) => setOnset(e.target.value)}>
+            <label htmlFor="on">Sudah berlangsung sejak</label>
+            <select id="on" value={onset} onChange={(e) => setOnset(e.target.value)}>
               {ONSET_OPTIONS.map((o) => (
                 <option key={o.v} value={o.v}>
                   {o.l}
@@ -333,10 +502,10 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
             </select>
           </div>
 
-          <div className="ew-field">
-            <label>Tanda yang perlu diperhatikan (pilih bila ada)</label>
+          <fieldset className="ew-req-fieldset">
+            <legend>Tanda yang perlu diperhatikan (pilih bila ada)</legend>
             {PROMPT_TAGS.map((tag) => (
-              <label key={tag.v} className="ew-check" style={{ marginBottom: 6 }}>
+              <label key={tag.v} className="ew-check">
                 <input
                   type="checkbox"
                   checked={flags.includes(tag.v)}
@@ -345,62 +514,102 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
                 <span>{tag.l}</span>
               </label>
             ))}
-          </div>
+          </fieldset>
 
-          <div className="ew-grid-2" style={{ gap: 12 }}>
-            <div className="ew-field">
-              <label htmlFor="pd">Tanggal yang diinginkan</label>
-              <input
-                id="pd"
-                type="date"
-                value={preferredDate}
-                onChange={(e) => setPreferredDate(e.target.value)}
-              />
+          {adaDarurat && (
+            <div className="ew-note ew-note--err" style={{ marginBottom: 14 }}>
+              <ShieldAlert size={16} />
+              <span>
+                Tanda yang Anda pilih perlu pemeriksaan segera. Kirim formulir ini, lalu hubungi
+                klinik atau layanan gawat darurat terdekat tanpa menunggu balasan.
+              </span>
             </div>
-            <div className="ew-field">
-              <label>Jam tersedia</label>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: '#7A7A7A',
-                  padding: '11px 0',
-                }}
-              >
-                {slotLoading ? 'Memuat ketersediaan...' : preferredSlot || 'Belum dipilih'}
+          )}
+
+          {butuhSlot && (
+            <div className="ew-req-jadwal">
+              <div className="ew-field">
+                <label htmlFor="pd">Tanggal yang diinginkan</label>
+                <input
+                  id="pd"
+                  type="date"
+                  value={preferredDate}
+                  min={tanggalMin}
+                  max={tanggalMaks}
+                  onChange={(e) => setPreferredDate(e.target.value)}
+                />
+              </div>
+
+              <div className="ew-req-slothead">
+                <strong>Jam tersedia</strong>
+                <span>
+                  {slotLoading
+                    ? 'Memeriksa jadwal...'
+                    : slots.length > 0
+                      ? slots.length + ' jam dibuka, ' + sisaTotal + ' tempat tersisa'
+                      : 'Belum ada jam terbaca'}
+                </span>
+              </div>
+
+              <div className="ew-slots" aria-busy={slotLoading}>
+                {slotLoading &&
+                  [0, 1, 2, 3].map((i) => <span key={i} className="ew-req-skeleton" />)}
+
+                {!slotLoading &&
+                  slots.map((s) => {
+                    const penuh = s.sisa <= 0;
+                    const aktif = preferredSlot === s.slot;
+                    return (
+                      <button
+                        key={s.slot}
+                        type="button"
+                        disabled={penuh}
+                        aria-pressed={aktif}
+                        onClick={() => setPreferredSlot(s.slot)}
+                        className={
+                          'ew-slot' + (aktif ? ' is-active' : '') + (penuh ? ' is-full' : '')
+                        }
+                      >
+                        <b>{s.slot}</b>
+                        <span>{penuh ? 'penuh' : s.sisa + ' sisa'}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+
+              {!slotLoading && slots.length === 0 && (
+                <div className="ew-note ew-note--warn">
+                  <Store size={15} />
+                  <span>
+                    Jam pada tanggal ini belum dapat dibaca
+                    {slotError ? ' (' + slotError + ')' : ''}. Anda tetap bisa mengirim
+                    permintaan dan petugas akan menawarkan jam alternatif lewat WhatsApp.
+                  </span>
+                </div>
+              )}
+
+              <div className="ew-req-pilihan">
+                {preferredSlot ? (
+                  <>
+                    <b>{labelSlot(preferredSlot)}</b>
+                    <span>{preferredDate}</span>
+                    <button type="button" onClick={() => setPreferredSlot('')}>
+                      ganti
+                    </button>
+                  </>
+                ) : (
+                  <span className="ew-req-pilihan-kosong">Belum ada jam yang dipilih.</span>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="ew-slots" style={{ marginBottom: 16 }}>
-            {slots.length === 0 && !slotLoading && (
-              <p style={{ fontSize: 12, color: '#7A7A7A', gridColumn: '1 / -1' }}>
-                Ketersediaan jam belum dapat dimuat. Anda tetap bisa mengirim permintaan dan petugas
-                akan menawarkan jam alternatif.
-              </p>
-            )}
-            {slots.map((s) => {
-              const full = s.sisa <= 0;
-              return (
-                <button
-                  key={s.slot}
-                  type="button"
-                  disabled={full}
-                  onClick={() => setPreferredSlot(s.slot + ' - ' + (parseInt(s.slot, 10) + 1) + ':00 WIB')}
-                  className={
-                    'ew-slot' +
-                    (preferredSlot?.startsWith(s.slot) ? ' is-active' : '') +
-                    (full ? ' is-full' : '')
-                  }
-                >
-                  <b>{s.slot}</b>
-                  <span>{full ? 'penuh' : s.sisa + ' sisa'}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <label className="ew-check" style={{ marginBottom: 14 }}>
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+          <label className="ew-check ew-req-consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
             <span>
               Saya menyetujui pemrosesan data untuk penjadwalan dan pelayanan klinis sesuai UU PDP
               No. 27/2022, dan memahami bahwa permintaan ini belum menjadi jadwal pasti sebelum
@@ -408,71 +617,194 @@ export function CareRequestForms({ clinicPhone }: { clinicPhone?: string }) {
             </span>
           </label>
 
-          {error && <div className="ew-note ew-note--err" style={{ marginBottom: 12 }}>{error}</div>}
+          {error && (
+            <div className="ew-note ew-note--err" style={{ marginBottom: 12 }}>
+              {error}
+            </div>
+          )}
 
-          {result && (
-            <div className="ew-note ew-note--ok" style={{ marginBottom: 12 }}>
-              {result.codeLabel}: <strong>{result.code}</strong>
-              <br />
-              Tersimpan di basis data klinik dengan prioritas <strong>{result.level}</strong>.
-              Petugas admisi akan menghubungi nomor wali untuk konfirmasi.
-              <br />
-              Simpan kode ini untuk menanyakan status permintaan Anda.
+          {hasil && (
+            <div className="ew-req-hasil">
+              <span className="ew-req-kicker">Permintaan tercatat</span>
+              <b className="ew-req-kode">{hasil.code}</b>
+              <p>
+                {hasil.codeLabel}. Masuk ke <strong>{hasil.antrean}</strong>
+                {hasil.level ? (
+                  <>
+                    {' '}
+                    dengan prioritas <strong>{hasil.level}</strong>
+                  </>
+                ) : null}
+                . Petugas menghubungi nomor wali untuk konfirmasi. Simpan kode ini untuk
+                menanyakan status.
+              </p>
               {clinicPhone ? (
-                <>
-                  <br />
-                  Perlu dibicarakan lebih dulu? Hubungi admisi di <strong>{clinicPhone}</strong>.
-                </>
+                <p>
+                  <Phone size={14} /> Perlu dibicarakan lebih dulu? Hubungi admisi di{' '}
+                  <strong>{clinicPhone}</strong>.
+                </p>
               ) : null}
             </div>
           )}
 
-          <button type="submit" className="ew-btn ew-btn--grad" style={{ width: '100%' }} disabled={busy}>
+          <button type="submit" className="ew-btn ew-btn--grad ew-req-kirim" disabled={busy}>
             {busy ? 'Mengirim...' : mode === 'KONSULTASI' ? 'Kirim pertanyaan' : 'Kirim permintaan'}
           </button>
+
+          <p className="ew-req-foot">
+            Tanpa biaya untuk mengirim permintaan. Biaya baru timbul pada tindakan yang Anda
+            setujui setelah asesmen.
+          </p>
         </form>
+
+        <aside className="ew-req-side">
+          <div className="ew-card">
+            <h3 className="ew-req-h3">
+              <MessageCircle size={16} /> Bagaimana alurnya?
+            </h3>
+            <ol className="ew-req-steps">
+              <li>
+                <b>Kirim permintaan.</b> Data masuk ke basis data klinik bersama penanda
+                prioritas, dan Anda menerima kode bukti.
+              </li>
+              <li>
+                <b>Dihubungi petugas.</b> Verifikasi identitas dan konfirmasi jam dilakukan lewat
+                WhatsApp atau telepon pada hari kerja.
+              </li>
+              <li>
+                <b>Asesmen awal.</b> Terapis memeriksa lima ranah komunikasi dan menelan, lalu
+                menyusun rencana terapi tertulis.
+              </li>
+            </ol>
+            <div className="ew-note ew-note--warn" style={{ marginTop: 16 }}>
+              Untuk kondisi darurat seperti sesak napas, tersedak berat, atau penurunan kesadaran,
+              hubungi layanan gawat darurat terdekat. Jangan menunggu balasan formulir ini.
+            </div>
+          </div>
+
+          <div className="ew-card">
+            <h3 className="ew-req-h3">
+              <Search size={16} /> Sudah pernah mengirim?
+            </h3>
+            <p className="ew-req-side-lead">
+              Masukkan kode bukti yang Anda terima untuk melihat status terakhirnya.
+            </p>
+            <CekStatus />
+          </div>
+
+          <div className="ew-card ew-req-side-pilih">
+            <h3 className="ew-req-h3">Yang Anda terima per pintu masuk</h3>
+            <ul>
+              {MODES.map((m) => (
+                <li key={m.id}>
+                  <b>{m.label}</b>
+                  <span>{m.bukti}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
       </div>
+    </div>
+  );
+}
 
-      <div style={{ display: 'grid', gap: 20 }}>
-        <AiConsultAssistant />
+function CekStatus() {
+  const [kode, setKode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [galat, setGalat] = useState<string | null>(null);
 
-        <div className="ew-card">
-          <h3 style={{ fontSize: 14.5, marginBottom: 10 }}>Bagaimana alurnya?</h3>
-          <div className="ew-hero-list">
-            <div className="ew-hero-item">
-              <span className="ew-hero-dot">
-                <CalendarCheck size={13} />
-              </span>
-              <span>
-                <strong>1. Kirim permintaan.</strong> Data langsung masuk ke basis data klinik bersama
-                penanda prioritas.
-              </span>
-            </div>
-            <div className="ew-hero-item">
-              <span className="ew-hero-dot">
-                <MessageCircle size={13} />
-              </span>
-              <span>
-                <strong>2. Dihubungi petugas.</strong> Verifikasi identitas dan konfirmasi jam
-                dilakukan lewat WhatsApp atau telepon.
-              </span>
-            </div>
-            <div className="ew-hero-item">
-              <span className="ew-hero-dot">
-                <ClipboardList size={13} />
-              </span>
-              <span>
-                <strong>3. Asesmen awal.</strong> Terapis memeriksa lima domain dan menyusun rencana
-                terapi tertulis.
-              </span>
-            </div>
-          </div>
-          <div className="ew-note ew-note--warn" style={{ marginTop: 14 }}>
-            Untuk kondisi darurat seperti sesak napas, tersedak berat, atau penurunan kesadaran,
-            hubungi layanan gawat darurat terdekat — jangan menunggu balasan formulir ini.
-          </div>
+  const cari = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGalat(null);
+    setData(null);
+    const bersih = kode.trim().toUpperCase();
+    if (bersih.length < 6) {
+      setGalat('Kode bukti terdiri dari minimal 6 karakter, misalnya BOOK-TW-20261124-101.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data: hasil, error } = await getClient().rpc('tw_public_request_status', {
+        p_code: bersih,
+      });
+      if (error) {
+        setGalat('Status tidak dapat dibaca: ' + error.message);
+        return;
+      }
+      const d = hasil as Record<string, unknown> | null;
+      if (!d || d.status !== 'ok') {
+        setGalat(
+          typeof d?.message === 'string'
+            ? d.message
+            : 'Kode tidak ditemukan. Periksa kembali huruf dan angkanya.',
+        );
+        return;
+      }
+      setData(d);
+    } catch (err) {
+      setGalat('Koneksi gagal: ' + (err instanceof Error ? err.message : 'jaringan tidak menjawab'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const status = typeof data?.status_permintaan === 'string' ? data.status_permintaan : '';
+  const arti = ARTI_STATUS[status] ?? (status ? 'Status tercatat: ' + status : '');
+
+  return (
+    <div className="ew-req-cek">
+      <form onSubmit={cari} noValidate>
+        <div className="ew-field">
+          <label htmlFor="cek-kode">Kode bukti</label>
+          <input
+            id="cek-kode"
+            value={kode}
+            onChange={(e) => setKode(e.target.value.toUpperCase())}
+            placeholder="BOOK-TW-20261124-101"
+            autoComplete="off"
+            spellCheck={false}
+          />
         </div>
-      </div>
+        <button type="submit" className="ew-req-cek-btn" disabled={busy}>
+          {busy ? 'Mencari...' : 'Lihat status'}
+        </button>
+      </form>
+
+      {galat && <div className="ew-note ew-note--warn">{galat}</div>}
+
+      {data && (
+        <div className="ew-req-status">
+          <div className="ew-req-status-top">
+            <b>{String(data.request_code ?? '')}</b>
+            <span>
+              {data.sumber === 'PENDAFTARAN' ? 'Pendaftaran online' : 'Permintaan layanan'}
+            </span>
+          </div>
+          <p className="ew-req-status-arti">{arti}</p>
+          <dl>
+            <div>
+              <dt>Pasien</dt>
+              <dd>{String(data.patient_initial ?? '-')}</dd>
+            </div>
+            <div>
+              <dt>Tanggal diinginkan</dt>
+              <dd>{String(data.preferred_date ?? 'belum ditentukan')}</dd>
+            </div>
+            <div>
+              <dt>Jam</dt>
+              <dd>{String(data.preferred_slot ?? 'belum dipilih')}</dd>
+            </div>
+            {data.triage_level ? (
+              <div>
+                <dt>Prioritas</dt>
+                <dd>{String(data.triage_level)}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,20 @@
+
 'use client';
 
-import React, { useState } from 'react';
+/**
+ * Portal pasien & keluarga.
+ *
+ * Sebelumnya halaman ini membuka diri dengan status "terverifikasi" dan
+ * menampilkan data contoh sebagai rekam medis pasien. Itu berbahaya: keluarga
+ * yang membuka portal melihat nama, diagnosis, dan tagihan orang lain tanpa
+ * memverifikasi apa pun.
+ *
+ * Sekarang data hanya muncul setelah dua identitas cocok di server
+ * (No. RM + tanggal lahir, Permenkes 24/2022). Tidak ada data cadangan yang
+ * ditampilkan bila pencarian gagal.
+ */
+
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -8,318 +22,350 @@ import {
   Calendar,
   CheckCircle2,
   FileCheck2,
+  Loader2,
   Printer,
   Receipt,
   ShieldCheck,
+  Wallet,
 } from 'lucide-react';
-import {
-  FALLBACK_SIMKLINIK_DATA,
-  formatRupiah,
-  getBrowserSupabase,
-} from '../../src/lib/supabaseClient';
+import { getKlien } from '../../src/lib/staffSession';
 
-export default function PatientCaregiverPortalPage() {
-  const [mrnInput, setMrnInput] = useState('RM-TW-2026-0041');
-  const [dobInput, setDobInput] = useState('2022-05-14');
-  const [verified, setVerified] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [hepCompletedToday, setHepCompletedToday] = useState(true);
+interface Pasien {
+  id: string;
+  medical_record_number: string;
+  full_name: string;
+  birth_date: string;
+  gender: string;
+  guardian_name: string;
+  guardian_relation: string;
+  referring_doctor: string;
+  referring_diagnosis_name: string;
+}
 
-  const [portalData, setPortalData] = useState({
-    patient: FALLBACK_SIMKLINIK_DATA.patients[0],
-    care_plans: FALLBACK_SIMKLINIK_DATA.care_plans,
-    hep_list: FALLBACK_SIMKLINIK_DATA.soap_sessions,
-    packages: FALLBACK_SIMKLINIK_DATA.packages.filter(
-      (p) => p.medical_record_number === 'RM-TW-2026-0041'
-    ),
-    invoices: FALLBACK_SIMKLINIK_DATA.invoices.filter(
-      (i) => i.medical_record_number === 'RM-TW-2026-0041'
-    ),
-  });
+interface Tujuan {
+  id: string;
+  target: string;
+  progress: number;
+}
 
-  const handleVerifyLookup = async (e: React.FormEvent) => {
+interface Rencana {
+  id: string;
+  status: string;
+  tw_diagnosis_name: string;
+  long_term_goal: string;
+  short_term_goals: Tujuan[] | null;
+  planned_sessions: number;
+  completed_sessions: number;
+}
+
+interface Sesi {
+  id: string;
+  session_date: string;
+  therapist_name: string;
+  target_skill: string;
+  accuracy_percentage: number;
+  home_exercise_program: string;
+  tte_certificate_serial: string;
+  is_locked_tte: boolean;
+}
+
+interface Paket {
+  id: string;
+  package_name: string;
+  total_sessions: number;
+  used_sessions: number;
+  remaining_sessions: number;
+  valid_until: string;
+}
+
+interface Faktur {
+  id: string;
+  invoice_number: string;
+  description: string;
+  amount_idr: number;
+  payment_status: string;
+  payment_method: string;
+  issued_at: string;
+}
+
+interface IsiPortal {
+  patient: Pasien;
+  care_plans: Rencana[];
+  hep_list: Sesi[];
+  packages: Paket[];
+  invoices: Faktur[];
+}
+
+const rupiah = (nilai: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
+    Number(nilai || 0),
+  );
+
+const tanggal = (nilai: string) => {
+  if (!nilai) return '-';
+  const d = new Date(nilai);
+  return Number.isNaN(d.getTime()) ? nilai : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+export default function PortalPasienPage() {
+  const [mrn, setMrn] = useState('');
+  const [lahir, setLahir] = useState('');
+  const [memuat, setMemuat] = useState(false);
+  const [galat, setGalat] = useState<string | null>(null);
+  const [isi, setIsi] = useState<IsiPortal | null>(null);
+
+  async function cari(e: React.FormEvent) {
     e.preventDefault();
-    setErrorMsg(null);
-
-    const sb = getBrowserSupabase();
-    if (sb) {
-      try {
-        const { data, error } = await sb.rpc('tw_patient_portal_lookup', {
-          p_mrn: mrnInput,
-          p_birth_date: dobInput,
-        });
-        if (!error && data) {
-          setPortalData(data);
-          setVerified(true);
-          return;
-        }
-        if (error) {
-          setErrorMsg(error.message);
-          return;
-        }
-      } catch {
-        // fallback lookup below
-      }
-    }
-
-    const found = FALLBACK_SIMKLINIK_DATA.patients.find(
-      (p) =>
-        p.medical_record_number.toUpperCase() === mrnInput.trim().toUpperCase() &&
-        p.birth_date === dobInput
-    );
-    if (!found) {
-      setErrorMsg(
-        'Kombinasi Nomor Rekam Medis & Tanggal Lahir tidak ditemukan (Standar Verifikasi 2 Identitas Permenkes No. 24/2022).'
-      );
+    setGalat(null);
+    if (!mrn.trim() || !lahir) {
+      setGalat('Isi nomor rekam medis dan tanggal lahir pasien.');
       return;
     }
+    setMemuat(true);
+    try {
+      const { data, error } = await getKlien().rpc('tw_patient_portal_lookup', {
+        p_mrn: mrn.trim().toUpperCase(),
+        p_birth_date: lahir,
+      });
+      if (error) {
+        setGalat(error.message);
+        setIsi(null);
+        return;
+      }
+      if (!data) {
+        setGalat('Rekam medis tidak ditemukan untuk kombinasi tersebut.');
+        setIsi(null);
+        return;
+      }
+      setIsi(data as IsiPortal);
+    } catch {
+      setGalat('Koneksi ke server klinik gagal. Periksa jaringan Anda.');
+    } finally {
+      setMemuat(false);
+    }
+  }
 
-    setPortalData({
-      patient: found,
-      care_plans: FALLBACK_SIMKLINIK_DATA.care_plans.filter(
-        (c) => c.patient_id === found.id
-      ),
-      hep_list: FALLBACK_SIMKLINIK_DATA.soap_sessions.filter(
-        (s) => s.patient_id === found.id
-      ),
-      packages: FALLBACK_SIMKLINIK_DATA.packages.filter(
-        (pk) => pk.medical_record_number === found.medical_record_number
-      ),
-      invoices: FALLBACK_SIMKLINIK_DATA.invoices.filter(
-        (iv) => iv.medical_record_number === found.medical_record_number
-      ),
-    });
-    setVerified(true);
-  };
+  function keluar() {
+    setIsi(null);
+    setMrn('');
+    setLahir('');
+    setGalat(null);
+  }
 
   return (
-    <div style={{ minHeight: '100vh', paddingBottom: 48 }}>
-      <header className="pub-header no-print">
-        <div className="pub-container pub-nav">
-          <div className="brand-box">
-            <Link href="/" className="btn btn-outline">
-              <ArrowLeft size={16} /> Beranda Klinik
-            </Link>
-            <div>
-              <div style={{ fontWeight: 800 }}>Portal Pasien & Keluarga (HEP Digital)</div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>
-                Verifikasi 2 Identitas Pasien • Terhubung Langsung dengan Aplikasi Android Terapis Wicara
-              </div>
-            </div>
-          </div>
-
-          <button onClick={() => window.print()} className="btn btn-primary">
-            <Printer size={16} /> Cetak Resume Terapi / Surat Sekolah
-          </button>
+    <div className="ew-portal">
+      <header className="ew-portal-head no-print">
+        <Link href="/" className="ew-portal-back">
+          <ArrowLeft size={15} /> Beranda klinik
+        </Link>
+        <div className="ew-portal-brand">
+          <ShieldCheck size={17} />
+          <span>
+            <strong>Portal pasien &amp; keluarga</strong>
+            <em>Ringkasan program terapi dan latihan rumah</em>
+          </span>
         </div>
-      </header>
-
-      <div className="pub-container" style={{ marginTop: 24, display: 'grid', gap: 20 }}>
-        {/* 2-Identifier Verification Form */}
-        <form onSubmit={handleVerifyLookup} className="card no-print">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <ShieldCheck size={18} color="#0f766e" />
-            <strong style={{ fontSize: 14 }}>
-              Akses Aman Rekam Ringkas Keluarga (Verifikasi 2 Parameter Permenkes 24/2022)
-            </strong>
-          </div>
-          <div className="grid-3" style={{ alignItems: 'end' }}>
-            <div>
-              <label className="form-label">Nomor Rekam Medis (No. RM)</label>
-              <input
-                value={mrnInput}
-                onChange={(e) => setMrnInput(e.target.value)}
-                className="form-control"
-                placeholder="RM-TW-2026-0041"
-              />
-            </div>
-            <div>
-              <label className="form-label">Tanggal Lahir Pasien</label>
-              <input
-                type="date"
-                value={dobInput}
-                onChange={(e) => setDobInput(e.target.value)}
-                className="form-control"
-              />
-            </div>
-            <button type="submit" className="btn btn-primary">
-              Buka Data Program Terapi
+        {isi ? (
+          <div className="ew-portal-head-act">
+            <button type="button" className="ew-portal-btn" onClick={() => window.print()}>
+              <Printer size={15} /> Cetak ringkasan
+            </button>
+            <button type="button" className="ew-portal-btn ew-portal-btn--ghost" onClick={keluar}>
+              Tutup
             </button>
           </div>
-          {errorMsg && (
-            <div style={{ color: '#dc2626', fontSize: 12, fontWeight: 700, marginTop: 8 }}>
-              {errorMsg}
-            </div>
-          )}
-        </form>
+        ) : null}
+      </header>
 
-        {verified && portalData.patient && (
+      <main className="ew-portal-main">
+        {!isi ? (
+          <section className="ew-portal-card">
+            <span className="ew-portal-kicker">Verifikasi dua identitas</span>
+            <h1>Buka ringkasan terapi keluarga Anda</h1>
+            <p className="ew-portal-lead">
+              Masukkan dua data yang tertulis pada kartu berobat. Sistem mencocokkannya di server
+              klinik; bila tidak cocok, tidak ada data apa pun yang ditampilkan.
+            </p>
+
+            <form onSubmit={cari} className="ew-portal-form" noValidate>
+              <label>
+                <span>Nomor rekam medis</span>
+                <input
+                  value={mrn}
+                  onChange={(e) => setMrn(e.target.value.toUpperCase())}
+                  placeholder="RM-TW-2026-0041"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+              <label>
+                <span>Tanggal lahir pasien</span>
+                <input type="date" value={lahir} onChange={(e) => setLahir(e.target.value)} />
+              </label>
+              <button type="submit" className="ew-portal-submit" disabled={memuat}>
+                {memuat ? <Loader2 size={16} className="ew-spin" /> : <ShieldCheck size={16} />}
+                {memuat ? 'Mencocokkan...' : 'Buka ringkasan'}
+              </button>
+            </form>
+
+            {galat ? <div className="ew-portal-err">{galat}</div> : null}
+
+            <p className="ew-portal-note">
+              Data yang tampil hanya ringkasan: rencana terapi, latihan rumah, sisa paket, dan
+              riwayat pembayaran. Catatan klinis lengkap hanya dibuka oleh petugas yang berwenang.
+            </p>
+          </section>
+        ) : (
           <>
-            {/* Patient Header & Active IEP Progress */}
-            <div className="grid-2">
-              <div className="card">
-                <span className="badge badge-teal">{portalData.patient.medical_record_number}</span>
-                <h1 style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>
-                  {portalData.patient.full_name}
-                </h1>
-                <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-                  Tanggal Lahir: {portalData.patient.birth_date} • Wali: {portalData.patient.guardian_name}
+            <section className="ew-portal-card ew-portal-ident">
+              <div>
+                <span className="ew-portal-chip">{isi.patient.medical_record_number}</span>
+                <h1>{isi.patient.full_name}</h1>
+                <p>
+                  Lahir {tanggal(isi.patient.birth_date)} &middot; {isi.patient.gender === 'L' ? 'Laki-laki' : 'Perempuan'}
+                  {isi.patient.guardian_name ? ` · Wali: ${isi.patient.guardian_name}` : ''}
                 </p>
-                <p style={{ fontSize: 13, color: '#334155', marginTop: 8 }}>
-                  <strong>Rujukan Klinis:</strong> {portalData.patient.referring_doctor} (
-                  {portalData.patient.referring_diagnosis_name})
-                </p>
-              </div>
-
-              {portalData.care_plans.map((cp, idx) => (
-                <div key={idx} className="card" style={{ background: '#f0fdfa', borderColor: '#99f6e4' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span className="badge badge-green">Program Terapi (IEP) {cp.status}</span>
-                    <strong style={{ fontSize: 13, color: '#0f766e' }}>
-                      Sesi Terlaksana: {cp.completed_sessions} / {cp.planned_sessions}
-                    </strong>
-                  </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, marginTop: 8 }}>
-                    {cp.tw_diagnosis_name}
-                  </h3>
-                  <p style={{ fontSize: 13, color: '#115e59', marginTop: 4 }}>
-                    <strong>Tujuan Jangka Panjang:</strong> {cp.long_term_goal}
+                {isi.patient.referring_doctor ? (
+                  <p className="ew-portal-sub">
+                    Rujukan {isi.patient.referring_doctor}
+                    {isi.patient.referring_diagnosis_name ? ` — ${isi.patient.referring_diagnosis_name}` : ''}
                   </p>
-                  <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                    {cp.short_term_goals?.map((stg) => (
-                      <div key={stg.id}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                          <span>{stg.target}</span>
-                          <strong>{stg.progress}%</strong>
-                        </div>
-                        <div
-                          style={{
-                            height: 7,
-                            background: '#ccfbf1',
-                            borderRadius: 999,
-                            marginTop: 4,
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: `${stg.progress}%`,
-                              height: '100%',
-                              background: '#0f766e',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Home Exercise Program (HEP) Sent from Therapist's Android App */}
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <BookOpenCheck size={20} color="#0f766e" />
-                  <h2 style={{ fontSize: 18, fontWeight: 800 }}>
-                    Program Latihan Rumah (Home Exercise Program / HEP) dari Terapis Wicara
-                  </h2>
-                </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#0f766e' }}>
-                  <input
-                    type="checkbox"
-                    checked={hepCompletedToday}
-                    onChange={(e) => setHepCompletedToday(e.target.checked)}
-                  />
-                  Latihan Rumah Hari Ini Selesai
-                </label>
+                ) : null}
               </div>
+              <div className="ew-portal-head-act no-print">
+                <button type="button" className="ew-portal-btn ew-portal-btn--ghost" onClick={keluar}>
+                  Ganti pasien
+                </button>
+              </div>
+            </section>
 
-              {portalData.hep_list.length === 0 ? (
-                <p style={{ fontSize: 13, color: '#64748b' }}>
-                  Belum ada catatan HEP terkunci untuk pasien ini.
-                </p>
+            <div className="ew-portal-grid">
+              {isi.care_plans.length === 0 ? (
+                <section className="ew-portal-card">
+                  <h2 className="ew-portal-h2">Program terapi</h2>
+                  <p className="ew-portal-empty">Belum ada rencana terapi yang diterbitkan.</p>
+                </section>
               ) : (
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {portalData.hep_list.map((hep, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: 14,
-                        borderRadius: 12,
-                        border: '1px solid #cbd5e1',
-                        background: '#f8fafc',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                        <strong style={{ fontSize: 14 }}>{hep.target_skill}</strong>
-                        <span className="badge badge-green">
-                          <FileCheck2 size={12} /> Akurasi Sesi: {hep.accuracy_percentage}% • TTE: {hep.tte_certificate_serial}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 13, color: '#1e293b', marginTop: 8 }}>
-                        <strong>Instruksi Latihan Orang Tua di Rumah:</strong> {hep.home_exercise_program}
-                      </p>
+                isi.care_plans.map((cp) => (
+                  <section key={cp.id} className="ew-portal-card">
+                    <div className="ew-portal-row">
+                      <span className="ew-portal-chip ew-portal-chip--ok">{cp.status}</span>
+                      <strong className="ew-portal-count">
+                        {cp.completed_sessions} / {cp.planned_sessions} sesi
+                      </strong>
                     </div>
-                  ))}
-                </div>
+                    <h2 className="ew-portal-h2">{cp.tw_diagnosis_name}</h2>
+                    <p className="ew-portal-sub">{cp.long_term_goal}</p>
+                    <div className="ew-portal-goals">
+                      {(cp.short_term_goals ?? []).map((g) => (
+                        <div key={g.id}>
+                          <div className="ew-portal-goal-head">
+                            <span>{g.target}</span>
+                            <strong>{g.progress}%</strong>
+                          </div>
+                          <div className="ew-portal-bar">
+                            <i style={{ width: `${Math.min(100, Math.max(0, g.progress))}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))
               )}
             </div>
 
-            {/* Sisa Kuota Paket Sesi & Riwayat Kwitansi Resmi */}
-            <div className="grid-2">
-              <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <Calendar size={18} color="#0f766e" />
-                  <h3 style={{ fontSize: 16, fontWeight: 800 }}>Kuota Paket Terapi Aktif</h3>
+            <section className="ew-portal-card">
+              <h2 className="ew-portal-h2">
+                <BookOpenCheck size={17} /> Latihan rumah dari terapis
+              </h2>
+              {isi.hep_list.length === 0 ? (
+                <p className="ew-portal-empty">Belum ada catatan latihan rumah.</p>
+              ) : (
+                <div className="ew-portal-hep">
+                  {isi.hep_list.map((s) => (
+                    <article key={s.id} className="ew-portal-hep-item">
+                      <div className="ew-portal-row">
+                        <strong>{s.target_skill || 'Sesi terapi'}</strong>
+                        <span className="ew-portal-chip ew-portal-chip--ok">
+                          <FileCheck2 size={12} /> Akurasi {Number(s.accuracy_percentage || 0)}%
+                        </span>
+                      </div>
+                      <p className="ew-portal-sub">
+                        {tanggal(s.session_date)} &middot; {s.therapist_name}
+                        {s.is_locked_tte && s.tte_certificate_serial
+                          ? ` · TTE ${s.tte_certificate_serial}`
+                          : ''}
+                      </p>
+                      {s.home_exercise_program ? (
+                        <p className="ew-portal-hep-body">{s.home_exercise_program}</p>
+                      ) : null}
+                    </article>
+                  ))}
                 </div>
-                {portalData.packages.map((pkg, idx) => (
-                  <div key={idx} style={{ padding: 12, background: '#f8fafc', borderRadius: 10 }}>
-                    <div style={{ fontWeight: 800 }}>{pkg.package_name}</div>
-                    <div style={{ fontSize: 13, color: '#0f766e', fontWeight: 700, marginTop: 4 }}>
-                      Terpakai {pkg.used_sessions} dari {pkg.total_sessions} Sesi • Sisa Kuota:{' '}
-                      {pkg.remaining_sessions} Sesi
-                    </div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                      Berlaku sampai: {pkg.valid_until}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              )}
+            </section>
 
-              <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <Receipt size={18} color="#0f766e" />
-                  <h3 style={{ fontSize: 16, fontWeight: 800 }}>Riwayat Bukti Pembayaran (e-Receipt)</h3>
-                </div>
-                {portalData.invoices.map((inv, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '10px 0',
-                      borderBottom: '1px solid #f1f5f9',
-                      fontSize: 13,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{inv.invoice_number}</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>{inv.description}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 800 }}>{formatRupiah(inv.amount_idr)}</div>
-                      <span className="badge badge-green">
-                        <CheckCircle2 size={11} /> {inv.payment_status} ({inv.payment_method})
+            <div className="ew-portal-grid">
+              <section className="ew-portal-card">
+                <h2 className="ew-portal-h2">
+                  <Calendar size={17} /> Sisa paket terapi
+                </h2>
+                {isi.packages.length === 0 ? (
+                  <p className="ew-portal-empty">Tidak ada paket aktif.</p>
+                ) : (
+                  isi.packages.map((p) => (
+                    <div key={p.id} className="ew-portal-item">
+                      <strong>{p.package_name}</strong>
+                      <span>
+                        Terpakai {p.used_sessions} dari {p.total_sessions} sesi &middot; sisa{' '}
+                        <b>{p.remaining_sessions}</b> sesi
                       </span>
+                      <span className="ew-portal-sub">Berlaku sampai {tanggal(p.valid_until)}</span>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))
+                )}
+              </section>
+
+              <section className="ew-portal-card">
+                <h2 className="ew-portal-h2">
+                  <Receipt size={17} /> Riwayat pembayaran
+                </h2>
+                {isi.invoices.length === 0 ? (
+                  <p className="ew-portal-empty">Belum ada kwitansi.</p>
+                ) : (
+                  isi.invoices.map((inv) => (
+                    <div key={inv.id} className="ew-portal-invoice">
+                      <div>
+                        <strong>{inv.invoice_number}</strong>
+                        <span className="ew-portal-sub">{inv.description}</span>
+                      </div>
+                      <div className="ew-portal-invoice-right">
+                        <strong>
+                          <Wallet size={13} /> {rupiah(inv.amount_idr)}
+                        </strong>
+                        <span
+                          className={
+                            'ew-portal-chip' + (inv.payment_status === 'LUNAS' ? ' ew-portal-chip--ok' : '')
+                          }
+                        >
+                          <CheckCircle2 size={11} /> {inv.payment_status}
+                          {inv.payment_method ? ` · ${inv.payment_method}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </section>
             </div>
+
+            <p className="ew-portal-legal">
+              Ditampilkan berdasarkan persetujuan yang tercatat pada rekam medis. Bila ada data yang
+              tidak sesuai, hubungi admisi klinik &mdash; jangan bagikan tautan atau tangkapan layar
+              halaman ini kepada pihak lain.
+            </p>
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 }
